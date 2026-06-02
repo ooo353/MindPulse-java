@@ -1,0 +1,85 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: mindpulse-backend
+  datasource:
+    url: jdbc:mysql://localhost:3306/mindpulse-database?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+    username: root
+    password: 123456
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  sql:
+    init:
+      mode: never
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  web:
+    cors:
+      allowed-origins:
+        - "http://localhost:5173"
+        - "http://localhost:3000"
+      allowed-methods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      allowed-headers: "*"
+      allow-credentials: true
+
+mybatis:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.mindpulse.backend.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+
+jwt:
+  secret: ${JWT_SECRET:mindpulseSecretKeyForJWTGenerationAndValidationWithSufficientLength}
+  expiration: 86400000
+
+ai:
+  service:
+    base-url: ${AI_SERVICE_URL:http://localhost:8000/api/v1/analyze}
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USER:guest}
+    password: ${RABBITMQ_PASS:guest}
+    listener:
+      simple:
+        concurrency: 2
+        max-concurrency: 5
+        prefetch: 1
+    template:
+      retry:
+        enabled: true
+        initial-interval: 1000ms
+        max-attempts: 3
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /doc.html
+  paths-to-match: /api/**
+
+logging:
+  level:
+    com.mindpulse: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG

@@ -1,0 +1,32 @@
+# Claude Code / IDE / AI 工具目录
+.claude/
+.codegraph/
+.idea/
+
+# 项目文档与提示词（非代码资产）
+docs/
+prompts/
+agentapi.md
+agent-prompt.md
+
+# Maven
+target/
+*.jar
+*.war
+*.ear
+
+# 编译产物
+*.class
+*.log
+
+# 环境与密钥
+.env
+*.env.local
+
+# 操作系统
+Thumbs.db
+Desktop.ini
+
+# 其他
+*.swp
+*.tmp
