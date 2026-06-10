@@ -1,17 +1,24 @@
 package com.mindpulse.backend.dto;
 
-import java.time.LocalDateTime;
+import jakarta.validation.constraints.NotBlank;
 
 public record NoteDto(
     Long id,
+
+    @NotBlank(message = "Note title is required")
     String title,
+
+    @NotBlank(message = "Note content is required")
     String content,
-    String type, // pdf/image/text
+
+    String type,
     String fileUrl,
-    String tags, // Comma-separated tags
-    String summary, // AI-generated summary
-    String category, // AI-recommended category
-    String status, // processing/completed/failed
+    String tags,
+    String summary,
+    String category,
+    String status,
+
+    @NotBlank(message = "Note author is required")
     String author
 ) {
 

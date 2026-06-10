@@ -1,0 +1,9 @@
+logging:
+  level:
+    com.mindpulse: INFO
+    org.springframework.security: INFO
+    org.springframework.web: INFO
+
+mybatis:
+  configuration:
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl

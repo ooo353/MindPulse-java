@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.mindpulse.backend.mapper.DashboardMapper">
+
+    <select id="countTasksByUser" resultType="int">
+        SELECT COUNT(*) FROM tasks WHERE author = #{userId}
+    </select>
+
+    <select id="countCompletedTasksByUser" resultType="int">
+        SELECT COUNT(*) FROM tasks WHERE author = #{userId} AND status = 'completed'
+    </select>
+
+    <select id="avgCompletionHoursByUser" resultType="java.lang.Double">
+        SELECT AVG(TIMESTAMPDIFF(HOUR, created_at, updated_at))
+        FROM tasks WHERE author = #{userId} AND status = 'completed'
+    </select>
+
+    <select id="countActiveDaysByUser" resultType="int">
+        SELECT COUNT(DISTINCT DATE(created_at)) FROM tasks WHERE author = #{userId} AND created_at >= #{since}
+    </select>
+
+    <select id="countNotesByUser" resultType="int">
+        SELECT COUNT(*) FROM notes WHERE author = #{userId}
+    </select>
+
+    <select id="taskCategoryDistribution" resultType="java.util.Map">
+        SELECT category as name, COUNT(*) as value FROM tasks
+        WHERE author = #{userId} AND category IS NOT NULL AND category != ''
+        GROUP BY category
+    </select>
+
+    <select id="noteCategoryDistribution" resultType="java.util.Map">
+        SELECT category as name, COUNT(*) as value FROM notes
+        WHERE author = #{userId} AND category IS NOT NULL AND category != ''
+        GROUP BY category
+    </select>
+
+    <select id="dailyCompletedTasks" resultType="java.util.Map">
+        SELECT DATE(updated_at) as date, COUNT(*) as count FROM tasks
+        WHERE author = #{userId} AND status = 'completed' AND updated_at >= #{since}
+        GROUP BY DATE(updated_at) ORDER BY date
+    </select>
+
+    <select id="dailyStudyMinutes" resultType="java.util.Map">
+        SELECT DATE(start_time) as date, SUM(actual_minutes) as minutes FROM pomodoro_sessions
+        WHERE user_id = #{userId} AND status = 'completed' AND start_time >= #{since} AND start_time &lt;= #{end}
+        GROUP BY DATE(start_time) ORDER BY date
+    </select>
+
+</mapper>

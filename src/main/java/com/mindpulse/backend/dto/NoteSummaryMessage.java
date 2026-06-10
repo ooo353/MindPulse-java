@@ -4,24 +4,21 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.io.Serializable;
 
-/**
- * RabbitMQ 笔记摘要处理消息体
- */
-@Schema(description = "笔记摘要异步处理消息")
+@Schema(description = "Note summary async processing message")
 public class NoteSummaryMessage implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
-    @Schema(description = "笔记ID")
+    @Schema(description = "Note ID")
     private Long noteId;
 
-    @Schema(description = "笔记内容")
+    @Schema(description = "Note content")
     private String content;
 
-    @Schema(description = "笔记标题")
+    @Schema(description = "Note title")
     private String title;
 
-    @Schema(description = "笔记作者")
+    @Schema(description = "Note author")
     private String author;
 
     public NoteSummaryMessage() {}

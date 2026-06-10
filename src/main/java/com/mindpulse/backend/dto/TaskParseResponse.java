@@ -5,19 +5,19 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.Map;
 
-@Schema(description = "AI任务解析响应")
+@Schema(description = "AI task parse response")
 public class TaskParseResponse {
 
-    @Schema(description = "AI解析的原始结果")
+    @Schema(description = "Raw AI parse result")
     private Map<String, Object> parsedTask;
 
-    @Schema(description = "创建的任务实体")
+    @Schema(description = "Created task entity")
     private Task createdTask;
 
-    @Schema(description = "是否来自缓存")
+    @Schema(description = "Whether result came from cache")
     private boolean fromCache;
 
-    @Schema(description = "响应时间（毫秒）")
+    @Schema(description = "Response time in milliseconds")
     private long responseTimeMs;
 
     public TaskParseResponse() {}

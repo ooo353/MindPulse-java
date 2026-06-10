@@ -2,34 +2,31 @@ package com.mindpulse.backend.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-/**
- * WebSocket 推送的笔记摘要处理结果
- */
-@Schema(description = "笔记摘要处理结果推送体")
+@Schema(description = "Note summary processing result pushed via WebSocket")
 public class NoteSummaryResult {
 
-    @Schema(description = "笔记ID")
+    @Schema(description = "Note ID")
     private Long noteId;
 
-    @Schema(description = "笔记标题")
+    @Schema(description = "Note title")
     private String title;
 
-    @Schema(description = "AI生成摘要")
+    @Schema(description = "AI-generated summary")
     private String summary;
 
-    @Schema(description = "AI推荐标签")
+    @Schema(description = "AI-recommended tags")
     private String tags;
 
-    @Schema(description = "AI推荐分类")
+    @Schema(description = "AI-recommended category")
     private String category;
 
-    @Schema(description = "处理状态: completed/failed")
+    @Schema(description = "Processing status: completed/failed")
     private String status;
 
-    @Schema(description = "所属用户")
+    @Schema(description = "Owner username")
     private String author;
 
-    @Schema(description = "处理耗时(ms)")
+    @Schema(description = "Processing time in milliseconds")
     private long processingTimeMs;
 
     public NoteSummaryResult() {}

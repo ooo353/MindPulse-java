@@ -2,28 +2,28 @@ package com.mindpulse.backend.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 
-@Schema(description = "缓存统计信息")
+@Schema(description = "Cache statistics information")
 public class CacheStatsResponse {
 
-    @Schema(description = "请求总数")
+    @Schema(description = "Total request count")
     private long totalRequests;
 
-    @Schema(description = "缓存命中数")
+    @Schema(description = "Cache hit count")
     private long cacheHits;
 
-    @Schema(description = "缓存未命中数")
+    @Schema(description = "Cache miss count")
     private long cacheMisses;
 
-    @Schema(description = "缓存命中率")
+    @Schema(description = "Cache hit rate")
     private double hitRate;
 
-    @Schema(description = "平均响应时间（毫秒）")
+    @Schema(description = "Average response time in milliseconds")
     private long avgResponseTimeMs;
 
-    @Schema(description = "缓存命中平均响应时间（毫秒）")
+    @Schema(description = "Cache hit average response time in milliseconds")
     private long cacheHitAvgMs;
 
-    @Schema(description = "缓存未命中平均响应时间（毫秒）")
+    @Schema(description = "Cache miss average response time in milliseconds")
     private long cacheMissAvgMs;
 
     public long getTotalRequests() {

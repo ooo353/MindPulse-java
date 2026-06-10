@@ -2,7 +2,7 @@ package com.mindpulse.backend.config;
 
 import com.mindpulse.backend.security.JwtFilter;
 import com.mindpulse.backend.service.CustomUserDetailsService;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -20,16 +20,16 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
+
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
 
-    @Autowired
-    private CustomUserDetailsService userDetailsService;
-
-    @Autowired
-    private JwtFilter jwtFilter;
+    private final CustomUserDetailsService userDetailsService;
+    private final JwtFilter jwtFilter;
 
     @Bean
     public PasswordEncoder passwordEncoder() {
@@ -44,10 +44,10 @@ public class SecurityConfig {
     @Bean
     public DaoAuthenticationProvider authenticationProvider() {
         DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-        
+
         authProvider.setUserDetailsService(userDetailsService);
         authProvider.setPasswordEncoder(passwordEncoder());
-        
+
         return authProvider;
     }
 
@@ -62,21 +62,21 @@ public class SecurityConfig {
                 .requestMatchers("/doc.html", "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 .anyRequest().authenticated()
             );
-            
+
         http.authenticationProvider(authenticationProvider());
         http.addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
-        
+
         return http.build();
     }
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.addAllowedOriginPattern("*");
+        configuration.setAllowedOriginPatterns(Arrays.asList("http://localhost:3000", "http://localhost:5173"));
         configuration.addAllowedMethod("*");
         configuration.addAllowedHeader("*");
         configuration.setAllowCredentials(true);
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;

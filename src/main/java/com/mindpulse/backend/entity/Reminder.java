@@ -7,16 +7,16 @@ import java.time.LocalDateTime;
 public class Reminder {
 
     private Long id;
-    private String userId;           // 提醒所属用户
-    private String message;          // 提醒内容
+    private String userId;
+    private String message;
     private String remindType;       // ONCE/DAILY/WEEKLY/CUSTOM
-    private LocalTime remindTime;    // 提醒时间点
-    private LocalDate remindDate;    // 一次性提醒的具体日期
-    private String dayOfWeek;        // 每周提醒的星期几 (MON/TUE/...)
-    private String cronExpression;   // 自定义 cron 表达式
-    private Long targetId;           // 关联的目标ID（任务/笔记）
+    private LocalTime remindTime;
+    private LocalDate remindDate;    // One-time reminder specific date
+    private String dayOfWeek;        // Weekly reminder day (MON/TUE/...)
+    private String cronExpression;   // Custom cron expression
+    private Long targetId;           // Associated target ID (task/note)
     private String targetType;       // TASK/NOTE
-    private Boolean enabled = true;  // 是否启用
+    private Boolean enabled = true;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 

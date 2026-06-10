@@ -1,0 +1,9 @@
+logging:
+  level:
+    com.mindpulse: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+
+mybatis:
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl

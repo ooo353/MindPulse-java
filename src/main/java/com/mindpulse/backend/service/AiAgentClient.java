@@ -2,8 +2,7 @@ package com.mindpulse.backend.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -15,10 +14,9 @@ import org.springframework.web.client.RestTemplate;
 import java.util.HashMap;
 import java.util.Map;
 
+@Slf4j
 @Service
 public class AiAgentClient {
-
-    private static final Logger log = LoggerFactory.getLogger(AiAgentClient.class);
 
     @Value("${ai.service.base-url}")
     private String aiServiceBaseUrl;
@@ -38,11 +36,6 @@ public class AiAgentClient {
         this.objectMapper = new ObjectMapper();
     }
 
-    /**
-     * 调用 AI 服务解析自然语言任务指令
-     * @param taskDescription 原始口语化指令
-     * @return 结构化任务数据 (title, description, due_date, priority, category)
-     */
     public Map<String, Object> parseTask(String taskDescription) {
         for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
             try {
@@ -56,7 +49,7 @@ public class AiAgentClient {
 
                 HttpEntity<Map<String, Object>> request = new HttpEntity<>(requestBody, headers);
 
-                log.debug("调用 AI 解析服务, url={}, input={}", url, taskDescription);
+                log.debug("Calling AI parse service, url={}, input={}", url, taskDescription);
                 String response = restTemplate.postForObject(url, request, String.class);
 
                 JsonNode responseNode = objectMapper.readTree(response);
@@ -68,14 +61,14 @@ public class AiAgentClient {
                 result.put("priority", responseNode.path("priority").asText("medium"));
                 result.put("category", responseNode.path("category").asText(""));
 
-                log.info("AI 解析成功: title={}, priority={}, category={}",
+                log.info("AI parse successful: title={}, priority={}, category={}",
                         result.get("title"), result.get("priority"), result.get("category"));
                 return result;
 
             } catch (Exception e) {
-                log.warn("AI 服务调用失败 (attempt {}/{}): {}", attempt + 1, MAX_RETRIES, e.getMessage());
+                log.warn("AI service call failed (attempt {}/{}): {}", attempt + 1, MAX_RETRIES, e.getMessage());
                 if (attempt == MAX_RETRIES - 1) {
-                    log.error("AI 服务最终调用失败，返回默认值");
+                    log.error("AI service call ultimately failed, returning fallback values");
                     return buildFallback(taskDescription);
                 }
             }
@@ -94,9 +87,6 @@ public class AiAgentClient {
         return fallback;
     }
 
-    /**
-     * 调用 AI 服务生成笔记摘要
-     */
     public Map<String, Object> generateSummary(String noteContent) {
         try {
             String url = aiServiceBaseUrl + "/generate_summary";
@@ -120,7 +110,7 @@ public class AiAgentClient {
 
             return result;
         } catch (Exception e) {
-            log.error("AI 摘要生成失败: {}", e.getMessage());
+            log.error("AI summary generation failed: {}", e.getMessage());
 
             Map<String, Object> fallback = new HashMap<>();
             fallback.put("title", "Auto-generated Title");

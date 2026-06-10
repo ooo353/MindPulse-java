@@ -5,25 +5,24 @@ import com.mindpulse.backend.entity.Reminder;
 import com.mindpulse.backend.exception.ResourceNotFoundException;
 import com.mindpulse.backend.mapper.ReminderMapper;
 import com.mindpulse.backend.util.DistributedLock;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Slf4j
 @Service
-public class ReminderService {
+@RequiredArgsConstructor
+public class ReminderService implements IReminderService {
 
-    private static final Logger log = LoggerFactory.getLogger(ReminderService.class);
+    private final ReminderMapper reminderMapper;
+    private final DistributedLock distributedLock;
 
-    @Autowired
-    private ReminderMapper reminderMapper;
-
-    @Autowired
-    private DistributedLock distributedLock;
-
+    @Override
+    @Transactional
     public Reminder createReminder(ReminderDto dto, String username) {
         Reminder reminder = new Reminder();
         reminder.setUserId(username);
@@ -40,14 +39,16 @@ public class ReminderService {
         reminder.setUpdatedAt(LocalDateTime.now());
 
         reminderMapper.insertReminder(reminder);
-        log.info("提醒创建成功: id={}, type={}, user={}", reminder.getId(), reminder.getRemindType(), username);
+        log.info("Reminder created: id={}, type={}, user={}", reminder.getId(), reminder.getRemindType(), username);
         return reminder;
     }
 
+    @Override
     public List<Reminder> getUserReminders(String username) {
         return reminderMapper.findByUserId(username);
     }
 
+    @Override
     public Reminder getReminderById(Long id, String username) {
         Reminder reminder = reminderMapper.findById(id);
         if (reminder == null || !reminder.getUserId().equals(username)) {
@@ -56,6 +57,8 @@ public class ReminderService {
         return reminder;
     }
 
+    @Override
+    @Transactional
     public Reminder updateReminder(Long id, ReminderDto dto, String username) {
         Reminder existing = getReminderById(id, username);
         existing.setMessage(dto.message());
@@ -70,19 +73,19 @@ public class ReminderService {
         existing.setUpdatedAt(LocalDateTime.now());
 
         reminderMapper.updateReminder(existing);
-        log.info("提醒已更新: id={}", id);
+        log.info("Reminder updated: id={}", id);
         return existing;
     }
 
+    @Override
+    @Transactional
     public void deleteReminder(Long id, String username) {
-        getReminderById(id, username); // 权限校验
+        getReminderById(id, username);
         reminderMapper.deleteById(id);
-        log.info("提醒已删除: id={}", id);
+        log.info("Reminder deleted: id={}", id);
     }
 
-    /**
-     * 获取所有启用的提醒（供调度器使用）
-     */
+    @Override
     public List<Reminder> findAllEnabled() {
         return reminderMapper.findAllEnabled();
     }

@@ -1,8 +1,7 @@
 package com.mindpulse.backend.util;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
@@ -12,20 +11,20 @@ import java.util.Collections;
 import java.util.UUID;
 
 /**
- * Redis 分布式锁，基于 SETNX + 过期时间 + Lua 脚本安全解锁
- * 解决多实例部署下的并发冲突问题
+ * Redis distributed lock based on SETNX + TTL + Lua script safe unlock.
+ * Resolves concurrency conflicts in multi-instance deployments.
  */
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class DistributedLock {
 
-    private static final Logger log = LoggerFactory.getLogger(DistributedLock.class);
+    private final StringRedisTemplate stringRedisTemplate;
 
     private static final String LOCK_PREFIX = "lock:";
-    private static final long DEFAULT_LOCK_TTL = 10; // 默认锁过期时间（秒）
+    private static final long DEFAULT_LOCK_TTL = 10;
 
-    /**
-     * Lua 脚本：仅当 value 匹配时才删除 key，防止误删其他实例的锁
-     */
+    // Lua script: only delete key when value matches, preventing accidental deletion of other instances' locks
     private static final String UNLOCK_SCRIPT =
             "if redis.call('get', KEYS[1]) == ARGV[1] then " +
             "    return redis.call('del', KEYS[1]) " +
@@ -41,17 +40,14 @@ public class DistributedLock {
         REDIS_SCRIPT.setResultType(Long.class);
     }
 
-    @Autowired
-    private StringRedisTemplate stringRedisTemplate;
-
     private final String lockId = UUID.randomUUID().toString();
 
     /**
-     * 尝试获取分布式锁
+     * Try to acquire distributed lock
      *
-     * @param key       锁标识（业务维度，如 task:123）
-     * @param ttlSeconds 锁过期时间（秒），超过后自动释放，防止死锁
-     * @return 锁令牌（用于解锁），获取失败返回 null
+     * @param key        lock identifier (business dimension, e.g. task:123)
+     * @param ttlSeconds lock expiration in seconds, auto-releases after timeout to prevent deadlocks
+     * @return lock token (for unlock), null if acquisition failed
      */
     public String tryLock(String key, long ttlSeconds) {
         String lockKey = LOCK_PREFIX + key;
@@ -60,13 +56,13 @@ public class DistributedLock {
             Boolean acquired = stringRedisTemplate.opsForValue()
                     .setIfAbsent(lockKey, lockValue, Duration.ofSeconds(ttlSeconds));
             if (Boolean.TRUE.equals(acquired)) {
-                log.debug("分布式锁获取成功: key={}", lockKey);
+                log.debug("Distributed lock acquired: key={}", lockKey);
                 return lockValue;
             }
-            log.debug("分布式锁获取失败（已被占用）: key={}", lockKey);
+            log.debug("Distributed lock acquisition failed (already held): key={}", lockKey);
             return null;
         } catch (Exception e) {
-            log.error("分布式锁操作异常: key={}, error={}", lockKey, e.getMessage());
+            log.error("Distributed lock operation exception: key={}, error={}", lockKey, e.getMessage());
             return null;
         }
     }
@@ -76,11 +72,11 @@ public class DistributedLock {
     }
 
     /**
-     * 释放分布式锁（仅释放自己持有的锁）
+     * Release distributed lock (only releases locks held by this instance)
      *
-     * @param key       锁标识
-     * @param lockValue 获取锁时返回的令牌
-     * @return true 释放成功，false 锁已过期或被其他实例持有
+     * @param key       lock identifier
+     * @param lockValue token returned when acquiring the lock
+     * @return true if released successfully, false if lock expired or held by another instance
      */
     public boolean unlock(String key, String lockValue) {
         if (lockValue == null) {
@@ -95,29 +91,29 @@ public class DistributedLock {
             );
             boolean released = result != null && result > 0;
             if (released) {
-                log.debug("分布式锁释放成功: key={}", lockKey);
+                log.debug("Distributed lock released: key={}", lockKey);
             } else {
-                log.debug("分布式锁释放失败（已过期或不属己）: key={}", lockKey);
+                log.debug("Distributed lock release failed (expired or not owned): key={}", lockKey);
             }
             return released;
         } catch (Exception e) {
-            log.error("分布式锁释放异常: key={}, error={}", lockKey, e.getMessage());
+            log.error("Distributed lock release exception: key={}, error={}", lockKey, e.getMessage());
             return false;
         }
     }
 
     /**
-     * 带锁执行任务（自动获取和释放）
+     * Execute task with lock (auto-acquire and release)
      *
-     * @param key       锁标识
-     * @param ttlSeconds 锁过期时间
-     * @param action    需要原子执行的操作
-     * @return true 操作成功，false 未获取到锁
+     * @param key        lock identifier
+     * @param ttlSeconds lock expiration
+     * @param action     operation to execute atomically
+     * @return true if operation succeeded, false if lock not acquired
      */
     public boolean executeWithLock(String key, long ttlSeconds, Runnable action) {
         String lockValue = tryLock(key, ttlSeconds);
         if (lockValue == null) {
-            log.warn("未能获取分布式锁，操作取消: key={}", key);
+            log.warn("Failed to acquire distributed lock, operation cancelled: key={}", key);
             return false;
         }
         try {

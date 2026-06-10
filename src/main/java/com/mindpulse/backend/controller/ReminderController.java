@@ -9,50 +9,47 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/reminders")
-@CrossOrigin(origins = "*", allowedHeaders = "*")
-@Tag(name = "智能提醒管理", description = "动态提醒 CRUD 及智能调度接口，支持多端同步与分布式并发控制")
+@Tag(name = "Reminder Management", description = "Dynamic reminder CRUD and smart scheduling interface with multi-device sync and distributed concurrency control")
+@RequiredArgsConstructor
 public class ReminderController {
 
-    private static final Logger log = LoggerFactory.getLogger(ReminderController.class);
-
-    @Autowired
-    private ReminderService reminderService;
+    private final ReminderService reminderService;
 
     private String getCurrentUsername() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return authentication != null ? authentication.getName() : null;
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AuthenticationServiceException("User is not authenticated");
+        }
+        return authentication.getName();
     }
 
-    @Operation(summary = "创建提醒", description = "创建一个新的提醒规则，支持一次性/每日/每周/自定义 cron 类型")
+    @Operation(summary = "Create reminder", description = "Create a new reminder rule, supports one-time/daily/weekly/custom cron types")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "提醒创建成功"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "创建失败")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Reminder created successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Creation failed")
     })
     @PostMapping
-    public ResponseEntity<ApiResponse<Reminder>> createReminder(@RequestBody ReminderDto dto) {
-        try {
-            String username = getCurrentUsername();
-            Reminder created = reminderService.createReminder(dto, username);
-            return ResponseEntity.status(201).body(ApiResponse.success(201, "提醒创建成功", created));
-        } catch (Exception e) {
-            log.error("创建提醒失败: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(ApiResponse.error("创建提醒失败: " + e.getMessage()));
-        }
+    public ResponseEntity<ApiResponse<Reminder>> createReminder(@Valid @RequestBody ReminderDto dto) {
+        String username = getCurrentUsername();
+        Reminder created = reminderService.createReminder(dto, username);
+        return ResponseEntity.status(201).body(ApiResponse.success(201, "Reminder created successfully", created));
     }
 
-    @Operation(summary = "获取所有提醒", description = "获取当前用户的所有提醒规则列表")
+    @Operation(summary = "Get all reminders", description = "Get all reminder rules for the current user")
     @GetMapping
     public ResponseEntity<ApiResponse<List<Reminder>>> getUserReminders() {
         String username = getCurrentUsername();
@@ -60,49 +57,31 @@ public class ReminderController {
         return ResponseEntity.ok(ApiResponse.success(reminders));
     }
 
-    @Operation(summary = "获取提醒详情", description = "根据ID获取单条提醒详情")
+    @Operation(summary = "Get reminder by ID", description = "Get single reminder details by ID")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<Reminder>> getReminderById(
-            @Parameter(description = "提醒ID") @PathVariable Long id) {
-        try {
-            String username = getCurrentUsername();
-            Reminder reminder = reminderService.getReminderById(id, username);
-            return ResponseEntity.ok(ApiResponse.success(reminder));
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.notFound().build();
-        }
+            @Parameter(description = "Reminder ID") @PathVariable Long id) {
+        String username = getCurrentUsername();
+        Reminder reminder = reminderService.getReminderById(id, username);
+        return ResponseEntity.ok(ApiResponse.success(reminder));
     }
 
-    @Operation(summary = "更新提醒", description = "修改提醒规则的时间、类型、消息内容等")
+    @Operation(summary = "Update reminder", description = "Modify reminder time, type, message content, etc.")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<Reminder>> updateReminder(
-            @Parameter(description = "提醒ID") @PathVariable Long id,
-            @RequestBody ReminderDto dto) {
-        try {
-            String username = getCurrentUsername();
-            Reminder updated = reminderService.updateReminder(id, dto, username);
-            return ResponseEntity.ok(ApiResponse.success("提醒更新成功", updated));
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            log.error("更新提醒失败: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(ApiResponse.error("更新提醒失败: " + e.getMessage()));
-        }
+            @Parameter(description = "Reminder ID") @PathVariable Long id,
+            @Valid @RequestBody ReminderDto dto) {
+        String username = getCurrentUsername();
+        Reminder updated = reminderService.updateReminder(id, dto, username);
+        return ResponseEntity.ok(ApiResponse.success("Reminder updated successfully", updated));
     }
 
-    @Operation(summary = "删除提醒", description = "根据ID删除提醒规则")
+    @Operation(summary = "Delete reminder", description = "Delete reminder rule by ID")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<String>> deleteReminder(
-            @Parameter(description = "提醒ID") @PathVariable Long id) {
-        try {
-            String username = getCurrentUsername();
-            reminderService.deleteReminder(id, username);
-            return ResponseEntity.ok(ApiResponse.success("提醒已删除"));
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            log.error("删除提醒失败: {}", e.getMessage(), e);
-            return ResponseEntity.status(500).body(ApiResponse.error("删除提醒失败: " + e.getMessage()));
-        }
+            @Parameter(description = "Reminder ID") @PathVariable Long id) {
+        String username = getCurrentUsername();
+        reminderService.deleteReminder(id, username);
+        return ResponseEntity.ok(ApiResponse.success("Reminder deleted successfully"));
     }
 }

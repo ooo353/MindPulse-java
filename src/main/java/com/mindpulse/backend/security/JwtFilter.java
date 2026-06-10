@@ -4,7 +4,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -17,16 +18,15 @@ import org.springframework.web.filter.OncePerRequestFilter;
 import java.io.IOException;
 import java.util.List;
 
+@Slf4j
 @Component
+@RequiredArgsConstructor
 public class JwtFilter extends OncePerRequestFilter {
 
-    @Autowired
-    private UserDetailsService userDetailsService;
+    private final UserDetailsService userDetailsService;
+    private final JwtUtil jwtUtil;
 
-    @Autowired
-    private JwtUtil jwtUtil;
-
-    // 🔥 修复：去掉通配符 **，startsWith 只识别纯路径前缀
+    // Fix: remove wildcard **, startsWith only recognizes pure path prefixes
     private static final List<String> AUTH_WHITELIST = List.of(
             "/api/auth/",
             "/ws/",
@@ -36,7 +36,6 @@ public class JwtFilter extends OncePerRequestFilter {
             "/swagger-ui.html"
     );
 
-    // 白名单接口：不执行 JWT 过滤
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) throws ServletException {
         String path = request.getServletPath();
@@ -58,7 +57,7 @@ public class JwtFilter extends OncePerRequestFilter {
             try {
                 username = jwtUtil.extractUsername(jwt);
             } catch (Exception e) {
-                // 无效Token直接跳过
+                log.debug("Invalid JWT token: {}", e.getMessage());
             }
         }
 

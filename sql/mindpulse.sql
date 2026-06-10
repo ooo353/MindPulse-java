@@ -150,7 +150,8 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` VALUES (1,'zyc','$2a$10$RJncZPZtW0/Y556W.qPPXeL7sOSWNh4D8H6OL/JbJ7UuwfeHKvrPq','1951652429@qq.com','ROLE_USER','2026-05-10 18:40:38','2026-05-10 18:40:38');
+INSERT INTO `users` (`username`, `password`, `email`, `role`) VALUES
+('demo', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'demo@example.com', 'USER');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -164,3 +165,43 @@ UNLOCK TABLES;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2026-05-30 15:18:10
+
+--
+-- Table structure for table `pomodoro_sessions`
+--
+
+DROP TABLE IF EXISTS `pomodoro_sessions`;
+CREATE TABLE `pomodoro_sessions` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(50) NOT NULL,
+  `task_id` bigint DEFAULT NULL,
+  `start_time` datetime NOT NULL,
+  `end_time` datetime DEFAULT NULL,
+  `duration_minutes` int NOT NULL DEFAULT 25,
+  `actual_minutes` int DEFAULT NULL,
+  `status` varchar(20) NOT NULL DEFAULT 'running',
+  `session_type` varchar(20) NOT NULL DEFAULT 'focus',
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_pomodoro_user` (`user_id`),
+  KEY `idx_pomodoro_status` (`status`),
+  KEY `idx_pomodoro_start` (`start_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Audit Log Module
+CREATE TABLE IF NOT EXISTS `audit_logs` (
+  `id` bigint NOT NULL AUTO_INCREMENT,
+  `user_id` varchar(50) NOT NULL,
+  `action` varchar(50) NOT NULL,
+  `resource_type` varchar(50) NOT NULL,
+  `resource_id` bigint DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `user_agent` varchar(500) DEFAULT NULL,
+  `details` text DEFAULT NULL,
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_audit_user` (`user_id`),
+  KEY `idx_audit_action` (`action`),
+  KEY `idx_audit_resource` (`resource_type`, `resource_id`),
+  KEY `idx_audit_created` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

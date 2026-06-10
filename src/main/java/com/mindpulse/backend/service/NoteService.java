@@ -3,13 +3,17 @@ package com.mindpulse.backend.service;
 import com.mindpulse.backend.dto.NoteDto;
 import com.mindpulse.backend.dto.NoteSummaryMessage;
 import com.mindpulse.backend.entity.Note;
+import com.mindpulse.backend.exception.ResourceNotFoundException;
 import com.mindpulse.backend.mapper.NoteMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
@@ -22,18 +26,24 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+@Slf4j
 @Service
-public class NoteService {
+@RequiredArgsConstructor
+public class NoteService implements INoteService {
 
-    private static final Logger log = LoggerFactory.getLogger(NoteService.class);
+    private final NoteMapper noteMapper;
+    private final NoteSummaryProducer noteSummaryProducer;
+    private final AiAgentClient aiAgentClient;
 
-    @Autowired
-    private NoteMapper noteMapper;
+    @Value("${mindpulse.upload.path:./uploads}")
+    private String uploadPath;
 
-    @Autowired
-    private NoteSummaryProducer noteSummaryProducer;
-
-    @CacheEvict(value = "notes", key = "#result.id")
+    @Override
+    @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "notes", allEntries = true),
+        @CacheEvict(value = "dashboard", allEntries = true)
+    })
     public Note createNote(NoteDto noteDto) {
         Note note = new Note();
         note.setTitle(noteDto.title());
@@ -51,6 +61,12 @@ public class NoteService {
         return note;
     }
 
+    @Override
+    @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "notes", allEntries = true),
+        @CacheEvict(value = "dashboard", allEntries = true)
+    })
     public Note uploadNote(String title, String content, String author, String tags, MultipartFile file) throws IOException {
         Note note = new Note();
         note.setTitle(title);
@@ -63,9 +79,9 @@ public class NoteService {
 
         if (file != null && !file.isEmpty()) {
             String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
-            String filePath = "uploads/" + fileName;
+            String filePath = uploadPath + File.separator + fileName;
 
-            File uploadDir = new File("uploads/");
+            File uploadDir = new File(uploadPath);
             if (!uploadDir.exists()) {
                 uploadDir.mkdirs();
             }
@@ -82,15 +98,17 @@ public class NoteService {
         return note;
     }
 
-    /**
-     * 异步上传笔记：保存后投递到 RabbitMQ，立即返回"处理中"状态
-     */
+    @Override
+    @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "notes", allEntries = true),
+        @CacheEvict(value = "dashboard", allEntries = true)
+    })
     public Map<String, Object> createNoteAsync(String title, String content, String author,
                                                 String tags, MultipartFile file) throws IOException {
         Note note = uploadNote(title, content, author, tags, file);
-        log.info("笔记已保存: noteId={}, 投递摘要任务到消息队列", note.getId());
+        log.info("Note saved: noteId={}, submitting summary task to message queue", note.getId());
 
-        // 投递到 RabbitMQ 异步处理
         NoteSummaryMessage message = new NoteSummaryMessage(
                 note.getId(), note.getContent(), note.getTitle(), author
         );
@@ -99,28 +117,36 @@ public class NoteService {
         Map<String, Object> result = new HashMap<>();
         result.put("noteId", note.getId());
         result.put("status", "processing");
-        result.put("message", "笔记已提交，摘要处理中");
+        result.put("message", "Note submitted, summary processing asynchronously");
         result.put("note", note);
         return result;
     }
 
+    @Override
     @Cacheable(value = "notes", key = "'author_' + #username")
     public List<Note> getAllNotesByUser(String username) {
         return noteMapper.findByAuthor(username);
     }
 
-    @Cacheable(value = "notes", key = "'search_' + #keyword")
+    @Override
+    @Cacheable(value = "notes", key = "'search_' + #keyword + '_' + #username")
     public List<Note> searchNotes(String keyword, String username) {
         return noteMapper.findByTitleContainingIgnoreCaseOrContentContainingIgnoreCase(keyword, username);
     }
 
+    @Override
     @Cacheable(value = "notes", key = "#id")
     public Optional<Note> getNoteById(Long id) {
         Note note = noteMapper.findById(id);
         return note != null ? Optional.of(note) : Optional.empty();
     }
 
-    @CacheEvict(value = "notes", key = "#id")
+    @Override
+    @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "notes", allEntries = true),
+        @CacheEvict(value = "dashboard", allEntries = true)
+    })
     public Note updateNote(Long id, NoteDto noteDto) {
         Note existingNote = noteMapper.findById(id);
 
@@ -141,13 +167,67 @@ public class NoteService {
         }
     }
 
-    @CacheEvict(value = "notes", key = "#id")
+    @Override
+    @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "notes", allEntries = true),
+        @CacheEvict(value = "dashboard", allEntries = true)
+    })
     public void deleteNote(Long id) {
         noteMapper.deleteById(id);
     }
 
+    @Override
+    @Transactional
+    public Map<String, Object> generateSummary(Long noteId, String username) {
+        Note note = noteMapper.findById(noteId);
+        if (note == null) {
+            throw new ResourceNotFoundException("Note not found with id: " + noteId);
+        }
+        verifyOwnership(note.getAuthor(), username, noteId);
+
+        Map<String, Object> summaryResult = aiAgentClient.generateSummary(note.getContent());
+
+        String newTitle = (String) summaryResult.get("title");
+        if (newTitle != null && !newTitle.isEmpty() && !newTitle.equals("Auto-generated Title")) {
+            note.setTitle(newTitle);
+        }
+
+        String newTags = (String) summaryResult.get("tags");
+        if (newTags != null && !newTags.isEmpty()) {
+            if (note.getTags() != null && !note.getTags().isEmpty()) {
+                note.setTags(note.getTags() + "," + newTags);
+            } else {
+                note.setTags(newTags);
+            }
+        }
+
+        note = updateNote(noteId,
+                new NoteDto(note.getId(), note.getTitle(), note.getContent(),
+                        note.getType(), note.getFileUrl(), note.getTags(),
+                        note.getSummary(), note.getCategory(), note.getStatus(),
+                        note.getAuthor()));
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("summary", summaryResult.get("summary"));
+        data.put("tags", summaryResult.get("tags"));
+        data.put("updated_note", note);
+        data.put("message", "Summary generated and note updated successfully");
+        return data;
+    }
+
+    @Override
+    public void verifyOwnership(String entityAuthor, String currentUser, Long entityId) {
+        if (!entityAuthor.equals(currentUser)) {
+            throw new AccessDeniedException("You do not have permission to access entity with id " + entityId);
+        }
+    }
+
     private String determineFileType(String fileName) {
-        String extension = fileName.substring(fileName.lastIndexOf(".") + 1).toLowerCase();
+        if (fileName == null) return "text";
+        int lastDot = fileName.lastIndexOf(".");
+        if (lastDot < 0) return "text";
+        String extension = fileName.substring(lastDot + 1).toLowerCase();
         switch (extension) {
             case "pdf":
                 return "pdf";

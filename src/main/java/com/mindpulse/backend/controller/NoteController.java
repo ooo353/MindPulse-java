@@ -1,10 +1,10 @@
 package com.mindpulse.backend.controller;
 
+import com.mindpulse.backend.annotation.AuditLogAnnotation;
 import com.mindpulse.backend.dto.ApiResponse;
 import com.mindpulse.backend.dto.NoteDto;
 import com.mindpulse.backend.entity.Note;
 import com.mindpulse.backend.exception.ResourceNotFoundException;
-import com.mindpulse.backend.service.AiAgentClient;
 import com.mindpulse.backend.service.NoteService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -12,86 +12,83 @@ import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.authentication.AuthenticationServiceException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+@Slf4j
 @RestController
 @RequestMapping("/api/notes")
-@CrossOrigin(origins = "*", allowedHeaders = "*")
-@Tag(name = "笔记管理", description = "笔记CRUD及异步AI摘要生成接口")
+@Tag(name = "Note Management", description = "Note CRUD and async AI summary generation interface")
+@RequiredArgsConstructor
 public class NoteController {
 
-    @Autowired
-    private NoteService noteService;
-
-    @Autowired
-    private AiAgentClient aiAgentClient;
+    private final NoteService noteService;
 
     private String getCurrentUsername() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        return authentication != null ? authentication.getName() : null;
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new AuthenticationServiceException("User is not authenticated");
+        }
+        return authentication.getName();
     }
 
-    @Operation(summary = "同步上传笔记", description = "上传笔记内容及可选附件，同步保存到数据库")
+    @Operation(summary = "Sync upload note", description = "Upload note content and optional attachment, save synchronously to database")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "笔记创建成功"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "创建失败")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Note created successfully"),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Creation failed")
     })
+    @AuditLogAnnotation(action = "CREATE", resourceType = "NOTE")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Map<String, Object>>> createNote(
-            @Parameter(description = "笔记标题") @RequestParam("title") String title,
-            @Parameter(description = "笔记内容") @RequestParam("content") String content,
-            @Parameter(description = "标签，逗号分隔") @RequestParam(value = "tags", required = false) String tags,
-            @Parameter(description = "附件文件") @RequestParam(value = "file", required = false) MultipartFile file) {
-        try {
-            String username = getCurrentUsername();
-            Note createdNote = noteService.uploadNote(title, content, username, tags, file);
+            @Parameter(description = "Note title") @RequestParam("title") String title,
+            @Parameter(description = "Note content") @RequestParam("content") String content,
+            @Parameter(description = "Tags, comma-separated") @RequestParam(value = "tags", required = false) String tags,
+            @Parameter(description = "Attachment file") @RequestParam(value = "file", required = false) MultipartFile file) throws IOException {
+        String username = getCurrentUsername();
+        Note createdNote = noteService.uploadNote(title, content, username, tags, file);
 
-            Map<String, Object> data = new HashMap<>();
-            data.put("message", "Note created successfully");
-            data.put("note", createdNote);
-            return ResponseEntity.status(201).body(ApiResponse.success(201, "Note created successfully", data));
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(ApiResponse.error("Failed to create note: " + e.getMessage()));
-        }
+        Map<String, Object> data = new HashMap<>();
+        data.put("message", "Note created successfully");
+        data.put("note", createdNote);
+        return ResponseEntity.status(201).body(ApiResponse.success(201, "Note created successfully", data));
     }
 
-    @Operation(summary = "异步上传笔记并生成摘要", description = "上传笔记内容后立即返回，后台通过AI异步生成摘要和标签，处理完成后通过WebSocket实时推送结果")
+    @Operation(summary = "Async upload note with summary", description = "Upload note content and return immediately, AI generates summary and tags asynchronously, pushes result via WebSocket on completion")
     @ApiResponses({
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "笔记已提交，异步处理中",
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Note submitted, processing asynchronously",
                     content = @Content(schema = @Schema(implementation = ApiResponse.class))),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "提交失败")
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Submission failed")
     })
     @PostMapping(value = "/async", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Map<String, Object>>> createNoteAsync(
-            @Parameter(description = "笔记标题", required = true) @RequestParam("title") String title,
-            @Parameter(description = "笔记内容", required = true) @RequestParam("content") String content,
-            @Parameter(description = "标签，逗号分隔") @RequestParam(value = "tags", required = false) String tags,
-            @Parameter(description = "附件文件") @RequestParam(value = "file", required = false) MultipartFile file) {
-        try {
-            String username = getCurrentUsername();
-            Map<String, Object> result = noteService.createNoteAsync(title, content, username, tags, file);
+            @Parameter(description = "Note title", required = true) @RequestParam("title") String title,
+            @Parameter(description = "Note content", required = true) @RequestParam("content") String content,
+            @Parameter(description = "Tags, comma-separated") @RequestParam(value = "tags", required = false) String tags,
+            @Parameter(description = "Attachment file") @RequestParam(value = "file", required = false) MultipartFile file) throws IOException {
+        String username = getCurrentUsername();
+        Map<String, Object> result = noteService.createNoteAsync(title, content, username, tags, file);
 
-            return ResponseEntity.status(201).body(
-                    ApiResponse.success(201, "笔记已提交，摘要异步处理中", result));
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(ApiResponse.error("提交笔记失败: " + e.getMessage()));
-        }
+        return ResponseEntity.status(201).body(
+                ApiResponse.success(201, "Note submitted, summary processing asynchronously", result));
     }
 
-    @Operation(summary = "查询所有笔记", description = "获取当前用户的所有笔记，支持关键字搜索")
+    @Operation(summary = "Get all notes", description = "Get all notes for the current user, supports keyword search")
     @GetMapping
     public ResponseEntity<ApiResponse<List<Note>>> getAllNotes(
-            @Parameter(description = "搜索关键字") @RequestParam(required = false) String keyword) {
+            @Parameter(description = "Search keyword") @RequestParam(required = false) String keyword) {
         String username = getCurrentUsername();
 
         List<Note> notes;
@@ -104,130 +101,75 @@ public class NoteController {
         return ResponseEntity.ok(ApiResponse.success(notes));
     }
 
-    @Operation(summary = "根据ID查询笔记", description = "获取单条笔记详情，需验证所有权")
+    @Operation(summary = "Get note by ID", description = "Get single note details, ownership verification required")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<Note>> getNoteById(
-            @Parameter(description = "笔记ID") @PathVariable Long id) {
-        try {
-            Note note = noteService.getNoteById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + id));
+            @Parameter(description = "Note ID") @PathVariable Long id) {
+        Note note = noteService.getNoteById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + id));
 
-            String username = getCurrentUsername();
-            if (!note.getAuthor().equals(username)) {
-                return ResponseEntity.status(403).body(ApiResponse.forbidden("Access denied: You don't own this note"));
-            }
+        String username = getCurrentUsername();
+        noteService.verifyOwnership(note.getAuthor(), username, id);
 
-            return ResponseEntity.ok(ApiResponse.success(note));
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.notFound().build();
-        }
+        return ResponseEntity.ok(ApiResponse.success(note));
     }
 
-    @Operation(summary = "更新笔记", description = "更新笔记的标题、内容、标签等信息，需验证所有权")
+    @Operation(summary = "Update note", description = "Update note title, content, tags, etc. Ownership verification required")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<Note>> updateNote(
-            @Parameter(description = "笔记ID") @PathVariable Long id,
-            @RequestBody NoteDto noteDto) {
-        try {
-            Note existingNote = noteService.getNoteById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + id));
+            @Parameter(description = "Note ID") @PathVariable Long id,
+            @Valid @RequestBody NoteDto noteDto) {
+        Note existingNote = noteService.getNoteById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + id));
 
-            String username = getCurrentUsername();
-            if (!existingNote.getAuthor().equals(username)) {
-                return ResponseEntity.status(403).body(ApiResponse.forbidden("Access denied: You don't own this note"));
-            }
+        String username = getCurrentUsername();
+        noteService.verifyOwnership(existingNote.getAuthor(), username, id);
 
-            NoteDto updatedNoteDto = new NoteDto(
-                noteDto.id(),
-                noteDto.title(),
-                noteDto.content(),
-                noteDto.type(),
-                noteDto.fileUrl(),
-                noteDto.tags(),
-                noteDto.summary(),
-                noteDto.category(),
-                noteDto.status(),
-                username
-            );
-            Note updatedNote = noteService.updateNote(id, updatedNoteDto);
-            return ResponseEntity.ok(ApiResponse.success("Note updated successfully", updatedNote));
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(ApiResponse.error("Failed to update note: " + e.getMessage()));
-        }
+        NoteDto updatedNoteDto = new NoteDto(
+            noteDto.id(),
+            noteDto.title(),
+            noteDto.content(),
+            noteDto.type(),
+            noteDto.fileUrl(),
+            noteDto.tags(),
+            noteDto.summary(),
+            noteDto.category(),
+            noteDto.status(),
+            username
+        );
+        Note updatedNote = noteService.updateNote(id, updatedNoteDto);
+        return ResponseEntity.ok(ApiResponse.success("Note updated successfully", updatedNote));
     }
 
-    @Operation(summary = "删除笔记", description = "根据ID删除笔记，需验证所有权")
+    @Operation(summary = "Delete note", description = "Delete note by ID, ownership verification required")
+    @AuditLogAnnotation(action = "DELETE", resourceType = "NOTE")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Map<String, Object>>> deleteNote(
-            @Parameter(description = "笔记ID") @PathVariable Long id) {
-        try {
-            Note existingNote = noteService.getNoteById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + id));
+            @Parameter(description = "Note ID") @PathVariable Long id) {
+        Note existingNote = noteService.getNoteById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + id));
 
-            String username = getCurrentUsername();
-            if (!existingNote.getAuthor().equals(username)) {
-                return ResponseEntity.status(403).body(ApiResponse.forbidden("Access denied: You don't own this note"));
-            }
+        String username = getCurrentUsername();
+        noteService.verifyOwnership(existingNote.getAuthor(), username, id);
 
-            noteService.deleteNote(id);
-            Map<String, Object> data = new HashMap<>();
-            data.put("message", "Note deleted successfully");
-            return ResponseEntity.ok(ApiResponse.success("Note deleted successfully", data));
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(ApiResponse.error("Failed to delete note: " + e.getMessage()));
-        }
+        noteService.deleteNote(id);
+        Map<String, Object> data = new HashMap<>();
+        data.put("message", "Note deleted successfully");
+        return ResponseEntity.ok(ApiResponse.success("Note deleted successfully", data));
     }
 
-    @Operation(summary = "同步生成摘要（已废弃）", description = "该接口仅用于调试和向后兼容，建议使用 POST /api/notes/async 异步接口")
+    @Operation(summary = "Generate summary synchronously (deprecated)", description = "This endpoint is for debugging and backward compatibility only. Use POST /api/notes/async instead.")
     @PostMapping("/{id}/summary")
     public ResponseEntity<ApiResponse<Map<String, Object>>> generateSummary(
-            @Parameter(description = "笔记ID") @PathVariable Long id) {
-        try {
-            Note note = noteService.getNoteById(id)
-                    .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + id));
+            @Parameter(description = "Note ID") @PathVariable Long id) {
+        Note note = noteService.getNoteById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + id));
 
-            String username = getCurrentUsername();
-            if (!note.getAuthor().equals(username)) {
-                return ResponseEntity.status(403).body(ApiResponse.forbidden("Access denied: You don't own this note"));
-            }
+        String username = getCurrentUsername();
+        noteService.verifyOwnership(note.getAuthor(), username, id);
 
-            Map<String, Object> summaryResult = aiAgentClient.generateSummary(note.getContent());
+        Map<String, Object> summaryResult = noteService.generateSummary(id, username);
 
-            String newTitle = (String) summaryResult.get("title");
-            if (newTitle != null && !newTitle.isEmpty() && !newTitle.equals("Auto-generated Title")) {
-                note.setTitle(newTitle);
-            }
-
-            String newTags = (String) summaryResult.get("tags");
-            if (newTags != null && !newTags.isEmpty()) {
-                if (note.getTags() != null && !note.getTags().isEmpty()) {
-                    note.setTags(note.getTags() + "," + newTags);
-                } else {
-                    note.setTags(newTags);
-                }
-            }
-
-            note = noteService.updateNote(id,
-                    new NoteDto(note.getId(), note.getTitle(), note.getContent(),
-                            note.getType(), note.getFileUrl(), note.getTags(),
-                            note.getSummary(), note.getCategory(), note.getStatus(),
-                            note.getAuthor()));
-
-            Map<String, Object> data = new HashMap<>();
-            data.put("summary", summaryResult.get("summary"));
-            data.put("tags", summaryResult.get("tags"));
-            data.put("updated_note", note);
-            data.put("message", "Summary generated and note updated successfully");
-
-            return ResponseEntity.ok(ApiResponse.success("Summary generated and note updated successfully", data));
-        } catch (ResourceNotFoundException e) {
-            return ResponseEntity.notFound().build();
-        } catch (Exception e) {
-            return ResponseEntity.status(500).body(ApiResponse.error("Failed to generate summary: " + e.getMessage()));
-        }
+        return ResponseEntity.ok(ApiResponse.success("Summary generated and note updated successfully", summaryResult));
     }
 }

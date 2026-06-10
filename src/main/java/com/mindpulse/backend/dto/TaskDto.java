@@ -1,36 +1,39 @@
 package com.mindpulse.backend.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.constraints.NotBlank;
 
 import java.time.LocalDateTime;
 
-@Schema(description = "任务数据传输对象")
+@Schema(description = "Task data transfer object")
 public record TaskDto(
-    @Schema(description = "任务ID", example = "1")
+    @Schema(description = "Task ID", example = "1")
     Long id,
 
-    @Schema(description = "任务标题", example = "去图书馆还书")
+    @NotBlank(message = "Task title is required")
+    @Schema(description = "Task title", example = "Return books to the library")
     String title,
 
-    @Schema(description = "任务描述", example = "去图书馆还书")
+    @Schema(description = "Task description", example = "Return books to the library")
     String description,
 
-    @Schema(description = "截止时间", example = "2026-05-24T15:00:00")
+    @Schema(description = "Due date", example = "2026-05-24T15:00:00")
     LocalDateTime dueDate,
 
-    @Schema(description = "优先级", example = "high", allowableValues = {"high", "medium", "low"})
+    @Schema(description = "Priority", example = "high", allowableValues = {"high", "medium", "low"})
     String priority,
 
-    @Schema(description = "状态", example = "pending", allowableValues = {"pending", "completed", "archived"})
+    @Schema(description = "Status", example = "pending", allowableValues = {"pending", "completed", "archived"})
     String status,
 
-    @Schema(description = "创建者用户名", example = "zhangsan")
+    @NotBlank(message = "Task author is required")
+    @Schema(description = "Creator username", example = "zhangsan")
     String author,
 
-    @Schema(description = "关联笔记ID，逗号分隔", example = "1,3")
+    @Schema(description = "Related note IDs, comma-separated", example = "1,3")
     String relatedNotes,
 
-    @Schema(description = "分类标签，逗号分隔", example = "学习,紧急")
+    @Schema(description = "Category tags, comma-separated", example = "study,urgent")
     String category
 ) {
     public TaskDto(String title, String description, String author) {

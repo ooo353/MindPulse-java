@@ -4,12 +4,14 @@ import com.mindpulse.backend.dto.TaskDto;
 import com.mindpulse.backend.entity.Task;
 import com.mindpulse.backend.mapper.TaskMapper;
 import com.mindpulse.backend.util.DistributedLock;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -18,18 +20,20 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+@Slf4j
 @Service
-public class TaskService {
+@RequiredArgsConstructor
+public class TaskService implements ITaskService {
 
-    private static final Logger log = LoggerFactory.getLogger(TaskService.class);
+    private final TaskMapper taskMapper;
+    private final DistributedLock distributedLock;
 
-    @Autowired
-    private TaskMapper taskMapper;
-
-    @Autowired
-    private DistributedLock distributedLock;
-
-    @CacheEvict(value = "tasks", key = "#result.id")
+    @Override
+    @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "tasks", allEntries = true),
+        @CacheEvict(value = "dashboard", allEntries = true)
+    })
     public Task createTask(TaskDto taskDto) {
         Task task = new Task();
         task.setTitle(taskDto.title());
@@ -44,13 +48,16 @@ public class TaskService {
         task.setUpdatedAt(LocalDateTime.now());
 
         taskMapper.insertTask(task);
-        log.info("任务创建成功: id={}, title={}", task.getId(), task.getTitle());
+        log.info("Task created: id={}, title={}", task.getId(), task.getTitle());
         return task;
     }
 
-    /**
-     * 从 AI 解析结果创建任务
-     */
+    @Override
+    @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "tasks", allEntries = true),
+        @CacheEvict(value = "dashboard", allEntries = true)
+    })
     public Task createFromParsedData(Map<String, Object> parsedData, String author) {
         Task task = new Task();
         task.setTitle((String) parsedData.get("title"));
@@ -62,39 +69,46 @@ public class TaskService {
         task.setCreatedAt(LocalDateTime.now());
         task.setUpdatedAt(LocalDateTime.now());
 
-        // 解析截止时间
         String dueDateStr = (String) parsedData.get("due_date");
         if (dueDateStr != null && !dueDateStr.isBlank()) {
             try {
                 dueDateStr = dueDateStr.replace(" ", "T");
                 task.setDueDate(LocalDateTime.parse(dueDateStr, DateTimeFormatter.ISO_LOCAL_DATE_TIME));
             } catch (DateTimeParseException e) {
-                log.warn("截止时间解析失败: {}", dueDateStr);
+                log.warn("Failed to parse due date: {}", dueDateStr);
             }
         }
 
         taskMapper.insertTask(task);
-        log.info("AI 解析任务创建成功: id={}, title={}, category={}", task.getId(), task.getTitle(), task.getCategory());
+        log.info("AI-parsed task created: id={}, title={}, category={}", task.getId(), task.getTitle(), task.getCategory());
         return task;
     }
 
+    @Override
     @Cacheable(value = "tasks", key = "'user_'.concat(#username)")
     public List<Task> getAllTasksByUser(String username) {
         return taskMapper.findByAuthor(username);
     }
 
+    @Override
     @Cacheable(value = "tasks", key = "'user_'.concat(#username).concat('_status_').concat(#status)")
     public List<Task> getTasksByUserAndStatus(String username, String status) {
         return taskMapper.findByAuthorAndStatus(username, status);
     }
 
+    @Override
     @Cacheable(value = "tasks", key = "#id")
     public Optional<Task> getTaskById(Long id) {
         Task task = taskMapper.findById(id);
         return task != null ? Optional.of(task) : Optional.empty();
     }
 
-    @CacheEvict(value = "tasks", key = "#id")
+    @Override
+    @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "tasks", allEntries = true),
+        @CacheEvict(value = "dashboard", allEntries = true)
+    })
     public Task updateTask(Long id, TaskDto taskDto) {
         Task existingTask = taskMapper.findById(id);
 
@@ -115,30 +129,34 @@ public class TaskService {
         }
     }
 
-    @CacheEvict(value = "tasks", key = "#id")
+    @Override
+    @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "tasks", allEntries = true),
+        @CacheEvict(value = "dashboard", allEntries = true)
+    })
     public void deleteTask(Long id) {
         taskMapper.deleteById(id);
     }
 
+    @Override
     public List<Task> findPendingTasksNearDueDate() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime futureTime = now.plusMinutes(30);
         return taskMapper.findPendingTasksNearDueDate(now, futureTime);
     }
 
-    /**
-     * 带分布式锁的任务状态更新，解决多端并发状态覆盖问题
-     *
-     * @param id     任务ID
-     * @param status 新状态
-     * @param username 操作者用户名
-     * @return 更新后的任务，锁竞争失败返回 null
-     */
+    @Override
+    @Transactional
+    @Caching(evict = {
+        @CacheEvict(value = "tasks", allEntries = true),
+        @CacheEvict(value = "dashboard", allEntries = true)
+    })
     public Task updateTaskStatusWithLock(Long id, String status, String username) {
         String lockKey = "task:" + id;
         String lockValue = distributedLock.tryLock(lockKey, 10);
         if (lockValue == null) {
-            log.warn("任务状态更新锁竞争失败: taskId={}, user={}", id, username);
+            log.warn("Task status update lock contention failed: taskId={}, user={}", id, username);
             return null;
         }
 
@@ -147,16 +165,21 @@ public class TaskService {
             if (task == null) {
                 throw new RuntimeException("Task not found: " + id);
             }
-            if (!task.getAuthor().equals(username)) {
-                throw new RuntimeException("Access denied: not the task owner");
-            }
+            verifyOwnership(task.getAuthor(), username, id);
             task.setStatus(status);
             task.setUpdatedAt(LocalDateTime.now());
             taskMapper.updateTask(task);
-            log.info("任务状态更新成功: taskId={}, status={}, user={}", id, status, username);
+            log.info("Task status updated: taskId={}, status={}, user={}", id, status, username);
             return task;
         } finally {
             distributedLock.unlock(lockKey, lockValue);
+        }
+    }
+
+    @Override
+    public void verifyOwnership(String entityAuthor, String currentUser, Long entityId) {
+        if (!entityAuthor.equals(currentUser)) {
+            throw new AccessDeniedException("You do not have permission to access entity with id " + entityId);
         }
     }
 }

@@ -51,4 +51,16 @@
         DELETE FROM users WHERE id = #{id}
     </delete>
 
+    <select id="findAll" resultMap="UserResultMap">
+        SELECT * FROM users ORDER BY created_at DESC
+    </select>
+
+    <select id="countAll" resultType="int">
+        SELECT COUNT(*) FROM users
+    </select>
+
+    <update id="updateRole">
+        UPDATE users SET role = #{role} WHERE id = #{id}
+    </update>
+
 </mapper>

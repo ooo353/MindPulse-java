@@ -2,12 +2,11 @@ package com.mindpulse.backend.config;
 
 import com.mindpulse.backend.entity.Reminder;
 import com.mindpulse.backend.entity.Task;
-import com.mindpulse.backend.service.ReminderService;
-import com.mindpulse.backend.service.TaskService;
+import com.mindpulse.backend.service.IReminderService;
+import com.mindpulse.backend.service.ITaskService;
 import com.mindpulse.backend.util.DistributedLock;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.EnableScheduling;
@@ -21,34 +20,20 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 动态提醒调度引擎：每分钟扫描待触发提醒，Redis 分布式锁防多实例重复推送
- */
+@Slf4j
 @Configuration
 @EnableScheduling
+@RequiredArgsConstructor
 public class ScheduledTasksConfig {
 
-    private static final Logger log = LoggerFactory.getLogger(ScheduledTasksConfig.class);
-
-    @Autowired
-    private TaskService taskService;
-
-    @Autowired
-    private ReminderService reminderService;
-
-    @Autowired
-    private SimpMessagingTemplate messagingTemplate;
-
-    @Autowired
-    private DistributedLock distributedLock;
+    private final ITaskService taskService;
+    private final IReminderService reminderService;
+    private final SimpMessagingTemplate messagingTemplate;
+    private final DistributedLock distributedLock;
 
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
-    /**
-     * 每分钟扫描用户配置的动态提醒，匹配当前时间的提醒推送
-     * 分布式锁确保同一提醒同一分钟窗口仅推送一次
-     */
     @Scheduled(fixedRate = 60000)
     public void checkAndFireReminders() {
         List<Reminder> enabledReminders = reminderService.findAllEnabled();
@@ -73,22 +58,18 @@ public class ScheduledTasksConfig {
         }
     }
 
-    /**
-     * 每10分钟扫描即将到期任务（未来30分钟内），推送任务到期提醒
-     * 分钟窗口分布式锁防止多实例重复执行
-     */
     @Scheduled(fixedRate = 600000)
     public void checkUpcomingTasks() {
         String windowKey = LocalTime.now().withSecond(0).withNano(0).format(TIME_FMT);
         String lockKey = "scheduler:task-reminder:" + windowKey;
         String lockValue = distributedLock.tryLock(lockKey, 500);
         if (lockValue == null) {
-            log.debug("任务到期扫描已由其他实例执行");
+            log.debug("Task due scan already executed by another instance");
             return;
         }
 
         try {
-            log.info("扫描即将到期任务...");
+            log.info("Scanning upcoming tasks...");
             List<Task> upcomingTasks = taskService.findPendingTasksNearDueDate();
 
             for (Task task : upcomingTasks) {
@@ -98,11 +79,11 @@ public class ScheduledTasksConfig {
                 data.put("title", task.getTitle());
                 data.put("dueDate", task.getDueDate() != null
                         ? task.getDueDate().format(DATE_FMT) : null);
-                data.put("message", "任务「" + task.getTitle() + "」即将到期！");
+                data.put("message", "Task '" + task.getTitle() + "' is due soon!");
                 data.put("author", task.getAuthor());
 
                 messagingTemplate.convertAndSendToUser(task.getAuthor(), "/queue/reminders", data);
-                log.info("任务到期提醒已推送: taskId={}, user={}", task.getId(), task.getAuthor());
+                log.info("Task due reminder pushed: taskId={}, user={}", task.getId(), task.getAuthor());
             }
         } finally {
             distributedLock.unlock(lockKey, lockValue);
@@ -115,7 +96,7 @@ public class ScheduledTasksConfig {
         if (!remindTime.equals(now)) return false;
 
         return switch (r.getRemindType()) {
-            case "ONCE" -> r.getRemindDate() == null || r.getRemindDate().equals(today);
+            case "ONCE" -> r.getRemindDate() != null && r.getRemindDate().equals(today);
             case "DAILY" -> true;
             case "WEEKLY" -> r.getDayOfWeek() != null
                     && r.getDayOfWeek().equalsIgnoreCase(todayDow.name().substring(0, 3));
@@ -134,6 +115,6 @@ public class ScheduledTasksConfig {
         data.put("targetType", reminder.getTargetType());
 
         messagingTemplate.convertAndSendToUser(reminder.getUserId(), "/queue/reminders", data);
-        log.info("提醒已推送: id={}, user={}", reminder.getId(), reminder.getUserId());
+        log.info("Reminder pushed: id={}, user={}", reminder.getId(), reminder.getUserId());
     }
 }
