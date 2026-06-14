@@ -15,6 +15,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationServiceException;
@@ -156,6 +159,82 @@ public class NoteController {
         Map<String, Object> data = new HashMap<>();
         data.put("message", "Note deleted successfully");
         return ResponseEntity.ok(ApiResponse.success("Note deleted successfully", data));
+    }
+
+    @Operation(summary = "Download note file", description = "Download the attached file of a note")
+    @GetMapping("/{id}/file")
+    public ResponseEntity<Resource> downloadFile(
+            @Parameter(description = "Note ID") @PathVariable Long id) {
+        String username = getCurrentUsername();
+        Note note = noteService.getNoteById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + id));
+
+        noteService.verifyOwnership(note.getAuthor(), username, id);
+
+        if (note.getFileUrl() == null || note.getFileUrl().isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        java.io.File file = new java.io.File(note.getFileUrl());
+        if (!file.exists()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Resource resource = new FileSystemResource(file);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/octet-stream"))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.getName() + "\"")
+                .body(resource);
+    }
+
+    @Operation(summary = "Preview note file inline", description = "Serve file with correct MIME type for inline preview in browser")
+    @GetMapping("/{id}/preview")
+    public ResponseEntity<Resource> previewFile(
+            @Parameter(description = "Note ID") @PathVariable Long id,
+            @Parameter(description = "JWT token for authentication") @RequestParam(required = false) String token) {
+        String username = getCurrentUsername();
+        Note note = noteService.getNoteById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + id));
+
+        noteService.verifyOwnership(note.getAuthor(), username, id);
+
+        if (note.getFileUrl() == null || note.getFileUrl().isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        java.io.File file = new java.io.File(note.getFileUrl());
+        if (!file.exists()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Resource resource = new FileSystemResource(file);
+        String contentType = getContentType(file.getName());
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(contentType))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.getName() + "\"")
+                .body(resource);
+    }
+
+    private String getContentType(String filename) {
+        int dotIndex = filename.lastIndexOf('.');
+        if (dotIndex < 0) return "application/octet-stream";
+        String ext = filename.substring(dotIndex + 1).toLowerCase();
+        return switch (ext) {
+            case "pdf" -> "application/pdf";
+            case "png" -> "image/png";
+            case "jpg", "jpeg" -> "image/jpeg";
+            case "gif" -> "image/gif";
+            case "webp" -> "image/webp";
+            case "bmp" -> "image/bmp";
+            case "svg" -> "image/svg+xml";
+            case "txt", "csv", "json", "xml", "log" -> "text/plain";
+            case "md" -> "text/markdown";
+            case "html", "htm" -> "text/html";
+            case "css" -> "text/css";
+            case "js" -> "application/javascript";
+            default -> "application/octet-stream";
+        };
     }
 
     @Operation(summary = "Generate summary synchronously (deprecated)", description = "This endpoint is for debugging and backward compatibility only. Use POST /api/notes/async instead.")

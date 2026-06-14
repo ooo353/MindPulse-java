@@ -7,13 +7,17 @@ import java.time.LocalDateTime;
 public class User {
     
     private Long id;
-    
+
     private String username;
-    
+
+    private String nickname;
+
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
-    
+
     private String email;
+
+    private String avatar;
     
 
     
@@ -31,8 +35,9 @@ public class User {
     public User() {}
     
     // Constructor with fields
-    public User(String username, String password, String email) {
+    public User(String username, String nickname, String password, String email) {
         this.username = username;
+        this.nickname = nickname;
         this.password = password;
         this.email = email;
     }
@@ -53,7 +58,15 @@ public class User {
     public void setUsername(String username) {
         this.username = username;
     }
-    
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
+    }
+
     public String getPassword() {
         return password;
     }
@@ -69,10 +82,15 @@ public class User {
     public void setEmail(String email) {
         this.email = email;
     }
-    
 
+    public String getAvatar() {
+        return avatar;
+    }
 
-    
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
+    }
+
     public String getRole() {
         return role;
     }

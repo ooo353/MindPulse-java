@@ -20,6 +20,9 @@ public record PomodoroSessionDto(
 
     @NotBlank(message = "Session type is required")
     @Schema(description = "Session type", example = "focus", allowableValues = {"focus", "short_break", "long_break"})
-    String sessionType
+    String sessionType,
+
+    @Schema(description = "Task description for this session", example = "Review math chapter 3")
+    String taskDescription
 ) {
 }

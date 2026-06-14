@@ -5,7 +5,9 @@
     <resultMap id="UserResultMap" type="com.mindpulse.backend.entity.User">
         <id property="id" column="id"/>
         <result property="username" column="username"/>
+        <result property="nickname" column="nickname"/>
         <result property="email" column="email"/>
+        <result property="avatar" column="avatar"/>
         <result property="password" column="password"/>
         <result property="role" column="role"/>
         <result property="createdAt" column="created_at"/>
@@ -61,6 +63,18 @@
 
     <update id="updateRole">
         UPDATE users SET role = #{role} WHERE id = #{id}
+    </update>
+
+    <update id="updateProfile">
+        UPDATE users SET nickname = #{nickname}, email = #{email}, updated_at = NOW() WHERE id = #{id}
+    </update>
+
+    <update id="updatePassword">
+        UPDATE users SET password = #{password}, updated_at = NOW() WHERE id = #{id}
+    </update>
+
+    <update id="updateAvatar">
+        UPDATE users SET avatar = #{avatar}, updated_at = NOW() WHERE id = #{id}
     </update>
 
 </mapper>

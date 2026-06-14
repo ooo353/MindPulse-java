@@ -1,5 +1,6 @@
 package com.mindpulse.backend.dto;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 
@@ -17,6 +18,7 @@ public record TaskDto(
     @Schema(description = "Task description", example = "Return books to the library")
     String description,
 
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     @Schema(description = "Due date", example = "2026-05-24T15:00:00")
     LocalDateTime dueDate,
 
@@ -26,7 +28,6 @@ public record TaskDto(
     @Schema(description = "Status", example = "pending", allowableValues = {"pending", "completed", "archived"})
     String status,
 
-    @NotBlank(message = "Task author is required")
     @Schema(description = "Creator username", example = "zhangsan")
     String author,
 

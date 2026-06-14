@@ -25,6 +25,8 @@ public class PomodoroSession {
 
     private String sessionType = "focus";
 
+    private String taskDescription;
+
     private LocalDateTime createdAt;
 
     public PomodoroSession() {}
@@ -106,6 +108,14 @@ public class PomodoroSession {
 
     public void setSessionType(String sessionType) {
         this.sessionType = sessionType;
+    }
+
+    public String getTaskDescription() {
+        return taskDescription;
+    }
+
+    public void setTaskDescription(String taskDescription) {
+        this.taskDescription = taskDescription;
     }
 
     public LocalDateTime getCreatedAt() {

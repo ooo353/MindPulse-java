@@ -5,6 +5,7 @@ import com.mindpulse.backend.dto.PomodoroStatsDto;
 import com.mindpulse.backend.entity.PomodoroSession;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface IPomodoroService {
@@ -20,4 +21,10 @@ public interface IPomodoroService {
     PomodoroStatsDto getStats(String userId, String period);
 
     List<PomodoroSession> getHistory(String userId, int page, int size);
+
+    void deleteSession(Long id, String userId);
+
+    void clearHistory(String userId);
+
+    List<Map<String, Object>> getDailySummary(String userId, String date);
 }

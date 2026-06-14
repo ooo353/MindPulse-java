@@ -1,14 +1,15 @@
 package com.mindpulse.backend.service;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mindpulse.backend.dto.TaskDto;
 import com.mindpulse.backend.entity.Task;
 import com.mindpulse.backend.mapper.TaskMapper;
 import com.mindpulse.backend.util.DistributedLock;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.Caching;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -27,13 +29,99 @@ public class TaskService implements ITaskService {
 
     private final TaskMapper taskMapper;
     private final DistributedLock distributedLock;
+    private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
+
+    private static final String CACHE_PREFIX = "tasks:";
+    private static final long CACHE_TTL_MINUTES = 10;
+
+    // --- Manual cache helpers ---
+
+    private <T> T getFromCache(String key, TypeReference<T> typeRef) {
+        try {
+            String json = redisTemplate.opsForValue().get(key);
+            if (json != null) {
+                return objectMapper.readValue(json, typeRef);
+            }
+        } catch (Exception e) {
+            log.warn("Redis cache read failed for key={}: {}", key, e.getMessage());
+        }
+        return null;
+    }
+
+    private void putToCache(String key, Object value) {
+        try {
+            String json = objectMapper.writeValueAsString(value);
+            redisTemplate.opsForValue().set(key, json, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        } catch (Exception e) {
+            log.warn("Redis cache write failed for key={}: {}", key, e.getMessage());
+        }
+    }
+
+    private void evictCache(String key) {
+        try {
+            redisTemplate.delete(key);
+        } catch (Exception e) {
+            log.warn("Redis cache evict failed for key={}: {}", key, e.getMessage());
+        }
+    }
+
+    private void evictCacheByPattern(String pattern) {
+        try {
+            var keys = redisTemplate.keys(pattern);
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
+            }
+        } catch (Exception e) {
+            log.warn("Redis cache evict failed for pattern={}: {}", pattern, e.getMessage());
+        }
+    }
+
+    // --- Read operations with cache-aside ---
+
+    @Override
+    public List<Task> getAllTasksByUser(String username) {
+        String key = CACHE_PREFIX + "user_" + username;
+        List<Task> cached = getFromCache(key, new TypeReference<List<Task>>() {});
+        if (cached != null) {
+            return cached;
+        }
+        List<Task> tasks = taskMapper.findByAuthor(username);
+        putToCache(key, tasks);
+        return tasks;
+    }
+
+    @Override
+    public List<Task> getTasksByUserAndStatus(String username, String status) {
+        String key = CACHE_PREFIX + "user_" + username + "_status_" + status;
+        List<Task> cached = getFromCache(key, new TypeReference<List<Task>>() {});
+        if (cached != null) {
+            return cached;
+        }
+        List<Task> tasks = taskMapper.findByAuthorAndStatus(username, status);
+        putToCache(key, tasks);
+        return tasks;
+    }
+
+    @Override
+    public Optional<Task> getTaskById(Long id) {
+        String key = CACHE_PREFIX + "id_" + id;
+        Task cached = getFromCache(key, new TypeReference<Task>() {});
+        if (cached != null) {
+            return Optional.of(cached);
+        }
+        Task task = taskMapper.findById(id);
+        if (task != null) {
+            putToCache(key, task);
+            return Optional.of(task);
+        }
+        return Optional.empty();
+    }
+
+    // --- Write operations with cache eviction ---
 
     @Override
     @Transactional
-    @Caching(evict = {
-        @CacheEvict(value = "tasks", allEntries = true),
-        @CacheEvict(value = "dashboard", allEntries = true)
-    })
     public Task createTask(TaskDto taskDto) {
         Task task = new Task();
         task.setTitle(taskDto.title());
@@ -49,15 +137,13 @@ public class TaskService implements ITaskService {
 
         taskMapper.insertTask(task);
         log.info("Task created: id={}, title={}", task.getId(), task.getTitle());
+
+        evictCacheByPattern(CACHE_PREFIX + "user_" + taskDto.author() + "*");
         return task;
     }
 
     @Override
     @Transactional
-    @Caching(evict = {
-        @CacheEvict(value = "tasks", allEntries = true),
-        @CacheEvict(value = "dashboard", allEntries = true)
-    })
     public Task createFromParsedData(Map<String, Object> parsedData, String author) {
         Task task = new Task();
         task.setTitle((String) parsedData.get("title"));
@@ -81,34 +167,13 @@ public class TaskService implements ITaskService {
 
         taskMapper.insertTask(task);
         log.info("AI-parsed task created: id={}, title={}, category={}", task.getId(), task.getTitle(), task.getCategory());
+
+        evictCacheByPattern(CACHE_PREFIX + "user_" + author + "*");
         return task;
     }
 
     @Override
-    @Cacheable(value = "tasks", key = "'user_'.concat(#username)")
-    public List<Task> getAllTasksByUser(String username) {
-        return taskMapper.findByAuthor(username);
-    }
-
-    @Override
-    @Cacheable(value = "tasks", key = "'user_'.concat(#username).concat('_status_').concat(#status)")
-    public List<Task> getTasksByUserAndStatus(String username, String status) {
-        return taskMapper.findByAuthorAndStatus(username, status);
-    }
-
-    @Override
-    @Cacheable(value = "tasks", key = "#id")
-    public Optional<Task> getTaskById(Long id) {
-        Task task = taskMapper.findById(id);
-        return task != null ? Optional.of(task) : Optional.empty();
-    }
-
-    @Override
     @Transactional
-    @Caching(evict = {
-        @CacheEvict(value = "tasks", allEntries = true),
-        @CacheEvict(value = "dashboard", allEntries = true)
-    })
     public Task updateTask(Long id, TaskDto taskDto) {
         Task existingTask = taskMapper.findById(id);
 
@@ -123,6 +188,9 @@ public class TaskService implements ITaskService {
             existingTask.setUpdatedAt(LocalDateTime.now());
 
             taskMapper.updateTask(existingTask);
+
+            evictCache(CACHE_PREFIX + "id_" + id);
+            evictCacheByPattern(CACHE_PREFIX + "user_" + existingTask.getAuthor() + "*");
             return existingTask;
         } else {
             throw new RuntimeException("Task not found with id: " + id);
@@ -131,12 +199,14 @@ public class TaskService implements ITaskService {
 
     @Override
     @Transactional
-    @Caching(evict = {
-        @CacheEvict(value = "tasks", allEntries = true),
-        @CacheEvict(value = "dashboard", allEntries = true)
-    })
     public void deleteTask(Long id) {
+        Task task = taskMapper.findById(id);
         taskMapper.deleteById(id);
+
+        evictCache(CACHE_PREFIX + "id_" + id);
+        if (task != null) {
+            evictCacheByPattern(CACHE_PREFIX + "user_" + task.getAuthor() + "*");
+        }
     }
 
     @Override
@@ -148,10 +218,6 @@ public class TaskService implements ITaskService {
 
     @Override
     @Transactional
-    @Caching(evict = {
-        @CacheEvict(value = "tasks", allEntries = true),
-        @CacheEvict(value = "dashboard", allEntries = true)
-    })
     public Task updateTaskStatusWithLock(Long id, String status, String username) {
         String lockKey = "task:" + id;
         String lockValue = distributedLock.tryLock(lockKey, 10);
@@ -170,6 +236,9 @@ public class TaskService implements ITaskService {
             task.setUpdatedAt(LocalDateTime.now());
             taskMapper.updateTask(task);
             log.info("Task status updated: taskId={}, status={}, user={}", id, status, username);
+
+            evictCache(CACHE_PREFIX + "id_" + id);
+            evictCacheByPattern(CACHE_PREFIX + "user_" + username + "*");
             return task;
         } finally {
             distributedLock.unlock(lockKey, lockValue);

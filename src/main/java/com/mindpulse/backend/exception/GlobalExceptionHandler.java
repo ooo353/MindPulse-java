@@ -11,6 +11,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -70,6 +71,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Object>> handleTooManyRequests(TooManyRequestsException ex) {
         log.warn("Rate limit exceeded: {}", ex.getMessage());
         return ResponseEntity.status(429).body(ApiResponse.error(429, ex.getMessage()));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ApiResponse<Object>> handleTypeMismatch(MethodArgumentTypeMismatchException ex) {
+        log.warn("Parameter type mismatch: {}", ex.getMessage());
+        return ResponseEntity.badRequest().body(ApiResponse.badRequest("Invalid parameter: " + ex.getName()));
     }
 
     @ExceptionHandler(Exception.class)

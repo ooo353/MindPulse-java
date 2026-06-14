@@ -10,6 +10,10 @@ import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.util.Map;
 
 @Slf4j
@@ -27,7 +31,15 @@ public class NoteSummaryConsumer {
         log.info("Received summary task: noteId={}, title={}", message.getNoteId(), message.getTitle());
 
         try {
-            Map<String, Object> aiResult = aiAgentClient.generateSummary(message.getContent());
+            String contentForSummary = message.getContent();
+            if (message.getFileUrl() != null && !message.getFileUrl().isEmpty()) {
+                String fileContent = readFileContent(message.getFileUrl());
+                if (fileContent != null && !fileContent.isEmpty()) {
+                    contentForSummary = (contentForSummary != null ? contentForSummary : "")
+                            + "\n\n[File Content]\n" + fileContent;
+                }
+            }
+            Map<String, Object> aiResult = aiAgentClient.generateSummary(contentForSummary);
 
             String summary = (String) aiResult.getOrDefault("summary", "");
             String tags = (String) aiResult.getOrDefault("tags", "");
@@ -79,6 +91,29 @@ public class NoteSummaryConsumer {
             if (lower.contains("reading") || lower.contains("book")) return "Reading Notes";
         }
         return "General Notes";
+    }
+
+    private String readFileContent(String filePath) {
+        try {
+            File file = new File(filePath);
+            if (!file.exists()) {
+                log.warn("File does not exist: {}", filePath);
+                return null;
+            }
+            if (file.length() > 10 * 1024 * 1024) {
+                log.warn("File too large to read for summary: {} ({} bytes)", filePath, file.length());
+                return null;
+            }
+            String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+            if (content.length() > 50000) {
+                content = content.substring(0, 50000);
+                log.info("File content truncated to 50000 chars for summary: {}", filePath);
+            }
+            return content;
+        } catch (IOException e) {
+            log.warn("Failed to read file content for summary: {}, error: {}", filePath, e.getMessage());
+            return null;
+        }
     }
 
     private void pushResult(String username, NoteSummaryResult result) {

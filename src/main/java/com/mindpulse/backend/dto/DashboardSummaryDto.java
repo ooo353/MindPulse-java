@@ -1,6 +1,7 @@
 package com.mindpulse.backend.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.io.Serializable;
 
 @Schema(description = "Dashboard summary statistics")
 public record DashboardSummaryDto(
@@ -21,4 +22,4 @@ public record DashboardSummaryDto(
 
     @Schema(description = "Total notes", example = "20")
     int totalNotes
-) {}
+) implements Serializable {}

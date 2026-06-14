@@ -1,6 +1,7 @@
 package com.mindpulse.backend.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.io.Serializable;
 import java.util.List;
 
 @Schema(description = "Productivity trend data")
@@ -13,4 +14,4 @@ public record ProductivityDto(
 
     @Schema(description = "Study minutes per date")
     List<Integer> studyMinutes
-) {}
+) implements Serializable {}

@@ -7,7 +7,6 @@ import com.mindpulse.backend.exception.ResourceNotFoundException;
 import com.mindpulse.backend.mapper.PomodoroSessionMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
@@ -18,6 +17,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -32,9 +32,19 @@ public class PomodoroService implements IPomodoroService {
     private static final String ACTIVE_SESSION_KEY = "pomodoro:active:%s";
     private static final long ACTIVE_SESSION_TTL_MINUTES = 30;
 
+    private void evictDashboardCache() {
+        try {
+            var keys = redisTemplate.keys("dashboard:*");
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
+            }
+        } catch (Exception e) {
+            log.warn("Redis dashboard cache evict failed: {}", e.getMessage());
+        }
+    }
+
     @Override
     @Transactional
-    @CacheEvict(value = "dashboard", allEntries = true)
     public PomodoroSession startSession(PomodoroSessionDto dto, String userId) {
         // Prevent duplicate active sessions
         Optional<PomodoroSession> existing = getActiveSession(userId);
@@ -44,6 +54,7 @@ public class PomodoroService implements IPomodoroService {
 
         int duration = dto.durationMinutes() != null ? dto.durationMinutes() : 25;
         PomodoroSession session = new PomodoroSession(userId, dto.taskId(), duration, dto.sessionType());
+        session.setTaskDescription(dto.taskDescription());
         session.setStartTime(LocalDateTime.now());
 
         pomodoroSessionMapper.insert(session);
@@ -52,12 +63,12 @@ public class PomodoroService implements IPomodoroService {
         String redisKey = String.format(ACTIVE_SESSION_KEY, userId);
         redisTemplate.opsForValue().set(redisKey, session, ACTIVE_SESSION_TTL_MINUTES, TimeUnit.MINUTES);
 
+        evictDashboardCache();
         return session;
     }
 
     @Override
     @Transactional
-    @CacheEvict(value = "dashboard", allEntries = true)
     public PomodoroSession completeSession(Long id, String userId) {
         PomodoroSession session = pomodoroSessionMapper.findById(id);
         if (session == null) {
@@ -80,12 +91,12 @@ public class PomodoroService implements IPomodoroService {
         session.setStatus("completed");
         session.setEndTime(now);
         session.setActualMinutes(actualMinutes);
+        evictDashboardCache();
         return session;
     }
 
     @Override
     @Transactional
-    @CacheEvict(value = "dashboard", allEntries = true)
     public PomodoroSession cancelSession(Long id, String userId) {
         PomodoroSession session = pomodoroSessionMapper.findById(id);
         if (session == null) {
@@ -105,6 +116,7 @@ public class PomodoroService implements IPomodoroService {
 
         session.setStatus("cancelled");
         session.setEndTime(LocalDateTime.now());
+        evictDashboardCache();
         return session;
     }
 
@@ -179,6 +191,32 @@ public class PomodoroService implements IPomodoroService {
             }
         }
         return streak;
+    }
+
+    @Override
+    @Transactional
+    public void deleteSession(Long id, String userId) {
+        PomodoroSession session = pomodoroSessionMapper.findById(id);
+        if (session == null) {
+            throw new ResourceNotFoundException("Pomodoro session not found with id: " + id);
+        }
+        verifyOwnership(session.getUserId(), userId, id);
+        pomodoroSessionMapper.deleteById(id);
+        log.info("Pomodoro session {} deleted by user {}", id, userId);
+        evictDashboardCache();
+    }
+
+    @Override
+    @Transactional
+    public void clearHistory(String userId) {
+        pomodoroSessionMapper.deleteByUserId(userId);
+        log.info("All pomodoro history cleared for user {}", userId);
+        evictDashboardCache();
+    }
+
+    @Override
+    public List<Map<String, Object>> getDailySummary(String userId, String date) {
+        return pomodoroSessionMapper.dailySummary(userId, date);
     }
 
     private void verifyOwnership(String entityAuthor, String currentUser, Long entityId) {

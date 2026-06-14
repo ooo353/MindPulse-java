@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface PomodoroSessionMapper {
@@ -59,4 +60,10 @@ public interface PomodoroSessionMapper {
     );
 
     List<String> findDistinctCompletedDates(@Param("userId") String userId);
+
+    void deleteById(@Param("id") Long id);
+
+    void deleteByUserId(@Param("userId") String userId);
+
+    List<Map<String, Object>> dailySummary(@Param("userId") String userId, @Param("date") String date);
 }

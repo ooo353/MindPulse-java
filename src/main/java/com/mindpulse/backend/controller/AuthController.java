@@ -41,6 +41,7 @@ public class AuthController {
             User user = userService.registerUser(userDto);
             Map<String, Object> data = new HashMap<>();
             data.put("username", user.getUsername());
+            data.put("email", user.getEmail());
             log.info("User registered successfully: {}", user.getUsername());
             return ResponseEntity.ok(ApiResponse.success("User registered successfully", data));
         } catch (RuntimeException e) {
@@ -69,6 +70,7 @@ public class AuthController {
             data.put("token", jwt);
             data.put("username", userDetails.getUsername());
             data.put("email", userDetails.getEmail());
+            data.put("role", userDetails.getRole());
 
             log.info("User logged in successfully: {}", userDetails.getUsername());
             return ResponseEntity.ok(ApiResponse.success("Login successful", data));

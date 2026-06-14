@@ -21,13 +21,17 @@ public class NoteSummaryMessage implements Serializable {
     @Schema(description = "Note author")
     private String author;
 
+    @Schema(description = "Note file URL")
+    private String fileUrl;
+
     public NoteSummaryMessage() {}
 
-    public NoteSummaryMessage(Long noteId, String content, String title, String author) {
+    public NoteSummaryMessage(Long noteId, String content, String title, String author, String fileUrl) {
         this.noteId = noteId;
         this.content = content;
         this.title = title;
         this.author = author;
+        this.fileUrl = fileUrl;
     }
 
     public Long getNoteId() {
@@ -60,6 +64,14 @@ public class NoteSummaryMessage implements Serializable {
 
     public void setAuthor(String author) {
         this.author = author;
+    }
+
+    public String getFileUrl() {
+        return fileUrl;
+    }
+
+    public void setFileUrl(String fileUrl) {
+        this.fileUrl = fileUrl;
     }
 
     @Override

@@ -12,6 +12,7 @@
         <result property="actualMinutes" column="actual_minutes"/>
         <result property="status" column="status"/>
         <result property="sessionType" column="session_type"/>
+        <result property="taskDescription" column="task_description"/>
         <result property="createdAt" column="created_at"/>
     </resultMap>
 
@@ -28,8 +29,8 @@
     </select>
 
     <insert id="insert" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO pomodoro_sessions (user_id, task_id, start_time, duration_minutes, status, session_type)
-        VALUES (#{userId}, #{taskId}, #{startTime}, #{durationMinutes}, #{status}, #{sessionType})
+        INSERT INTO pomodoro_sessions (user_id, task_id, start_time, duration_minutes, status, session_type, task_description)
+        VALUES (#{userId}, #{taskId}, #{startTime}, #{durationMinutes}, #{status}, #{sessionType}, #{taskDescription})
     </insert>
 
     <update id="updateStatus">
@@ -65,6 +66,21 @@
         SELECT DISTINCT DATE(start_time) FROM pomodoro_sessions
         WHERE user_id = #{userId} AND status = 'completed'
         ORDER BY DATE(start_time) DESC
+    </select>
+
+    <delete id="deleteById">
+        DELETE FROM pomodoro_sessions WHERE id = #{id}
+    </delete>
+
+    <delete id="deleteByUserId">
+        DELETE FROM pomodoro_sessions WHERE user_id = #{userId}
+    </delete>
+
+    <select id="dailySummary" resultType="java.util.Map">
+        SELECT session_type as sessionType, SUM(actual_minutes) as totalMinutes
+        FROM pomodoro_sessions
+        WHERE user_id = #{userId} AND DATE(start_time) = #{date} AND status = 'completed'
+        GROUP BY session_type
     </select>
 
 </mapper>

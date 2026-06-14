@@ -17,7 +17,9 @@ import org.springframework.security.authentication.AuthenticationServiceExceptio
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -109,6 +111,33 @@ public class PomodoroController {
         String userId = getCurrentUsername();
         List<PomodoroSession> history = pomodoroService.getHistory(userId, page, size);
         return ResponseEntity.ok(ApiResponse.success(200, "History retrieved", history));
+    }
+
+    @Operation(summary = "Delete a pomodoro session")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<Void>> deleteSession(
+            @Parameter(description = "Session ID") @PathVariable Long id) {
+        String userId = getCurrentUsername();
+        pomodoroService.deleteSession(id, userId);
+        return ResponseEntity.ok(ApiResponse.success(200, "Session deleted", null));
+    }
+
+    @Operation(summary = "Clear all pomodoro history")
+    @DeleteMapping("/history")
+    public ResponseEntity<ApiResponse<Void>> clearHistory() {
+        String userId = getCurrentUsername();
+        pomodoroService.clearHistory(userId);
+        return ResponseEntity.ok(ApiResponse.success(200, "History cleared", null));
+    }
+
+    @Operation(summary = "Get daily summary for pie chart")
+    @GetMapping("/daily-summary")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getDailySummary(
+            @RequestParam(defaultValue = "") String date) {
+        String userId = getCurrentUsername();
+        if (date.isEmpty()) date = LocalDate.now().toString();
+        List<Map<String, Object>> summary = pomodoroService.getDailySummary(userId, date);
+        return ResponseEntity.ok(ApiResponse.success(200, "Daily summary retrieved", summary));
     }
 
     private String getCurrentUsername() {

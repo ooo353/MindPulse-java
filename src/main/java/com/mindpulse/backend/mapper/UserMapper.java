@@ -30,4 +30,10 @@ public interface UserMapper {
     int countAll();
 
     void updateRole(@Param("id") Long id, @Param("role") String role);
+
+    void updateProfile(@Param("id") Long id, @Param("nickname") String nickname, @Param("email") String email);
+
+    void updatePassword(@Param("id") Long id, @Param("password") String password);
+
+    void updateAvatar(@Param("id") Long id, @Param("avatar") String avatar);
 }

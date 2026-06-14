@@ -81,4 +81,4 @@ springdoc:
 
 mindpulse:
   upload:
-    path: ${UPLOAD_PATH:./uploads}
+    path: ${UPLOAD_PATH:D:/Users/19516/Desktop/java-dev/MindPulse/MindPulse-java/mindpulse-system/files}

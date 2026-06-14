@@ -133,15 +133,17 @@ DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '用户唯一标识符',
   `username` varchar(255) NOT NULL COMMENT '用户名，必须唯一',
+  `nickname` varchar(50) DEFAULT NULL COMMENT '用户昵称',
   `password` varchar(255) NOT NULL COMMENT '加密后的用户密码',
   `email` varchar(255) DEFAULT NULL COMMENT '用户邮箱地址',
+  `avatar` varchar(500) DEFAULT NULL COMMENT '头像URL',
   `role` varchar(50) DEFAULT 'ROLE_USER' COMMENT '用户角色，默认为普通用户',
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '记录创建时间',
   `updated_at` datetime DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '记录最后更新时间',
   PRIMARY KEY (`id`),
   UNIQUE KEY `username` (`username`),
   KEY `idx_user_username` (`username`) COMMENT '按用户名查询用户的索引'
-) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户信息表';
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='用户信息表';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -150,21 +152,12 @@ CREATE TABLE `users` (
 
 LOCK TABLES `users` WRITE;
 /*!40000 ALTER TABLE `users` DISABLE KEYS */;
-INSERT INTO `users` (`username`, `password`, `email`, `role`) VALUES
-('demo', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'demo@example.com', 'USER');
+INSERT INTO `users` (`username`, `nickname`, `password`, `email`, `role`) VALUES
+('admin', '管理员', '$2a$10$wJi67Hzl67XwIuWx1YwwAeNXSlm5cJhehvR54Lbr4XndAF84hUcti', 'admin@mindpulse.com', 'ROLE_ADMIN'),
+('user', '普通用户', '$2a$10$Y1/H2i86w0GEWwgVbotCpeXpdVUbf2P3vnqDovmK3WA2Y4V2g98/2', 'user@mindpulse.com', 'ROLE_USER'),
+('demo', 'Demo', '$2a$10$Y1/H2i86w0GEWwgVbotCpeXpdVUbf2P3vnqDovmK3WA2Y4V2g98/2', 'demo@example.com', 'ROLE_USER');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
-/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
-
-/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
-/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
-/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
-/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
-/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
-/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
-/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
-
--- Dump completed on 2026-05-30 15:18:10
 
 --
 -- Table structure for table `pomodoro_sessions`
@@ -181,6 +174,7 @@ CREATE TABLE `pomodoro_sessions` (
   `actual_minutes` int DEFAULT NULL,
   `status` varchar(20) NOT NULL DEFAULT 'running',
   `session_type` varchar(20) NOT NULL DEFAULT 'focus',
+  `task_description` varchar(200) DEFAULT NULL,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_pomodoro_user` (`user_id`),
@@ -188,7 +182,10 @@ CREATE TABLE `pomodoro_sessions` (
   KEY `idx_pomodoro_start` (`start_time`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Audit Log Module
+--
+-- Table structure for table `audit_logs`
+--
+
 CREATE TABLE IF NOT EXISTS `audit_logs` (
   `id` bigint NOT NULL AUTO_INCREMENT,
   `user_id` varchar(50) NOT NULL,
@@ -205,3 +202,13 @@ CREATE TABLE IF NOT EXISTS `audit_logs` (
   KEY `idx_audit_resource` (`resource_type`, `resource_id`),
   KEY `idx_audit_created` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
