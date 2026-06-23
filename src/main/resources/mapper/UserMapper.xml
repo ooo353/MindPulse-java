@@ -62,7 +62,7 @@
     </select>
 
     <update id="updateRole">
-        UPDATE users SET role = #{role} WHERE id = #{id}
+        UPDATE users SET role = #{role}, updated_at = NOW() WHERE id = #{id}
     </update>
 
     <update id="updateProfile">

@@ -28,4 +28,12 @@ public interface TaskMapper {
     void updateTask(Task task);
     
     void deleteById(@Param("id") Long id);
+
+    int updateStatusWithOptimisticLock(
+        @Param("id") Long id,
+        @Param("status") String status,
+        @Param("version") Integer version,
+        @Param("username") String username,
+        @Param("updatedAt") LocalDateTime updatedAt
+    );
 }

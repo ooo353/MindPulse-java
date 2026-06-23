@@ -165,6 +165,12 @@ public class UserService implements IUserService {
         if (user == null) {
             throw new RuntimeException("User not found");
         }
+        // Check email uniqueness if email is being changed
+        if (dto.email() != null && !dto.email().equals(user.getEmail())) {
+            if (userMapper.existsByEmail(dto.email())) {
+                throw new RuntimeException("Email is already in use");
+            }
+        }
         userMapper.updateProfile(userId, dto.nickname(), dto.email());
         evictUserCache(user);
     }

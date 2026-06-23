@@ -34,7 +34,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/notes")
-@Tag(name = "Note Management", description = "Note CRUD and async AI summary generation interface")
+@Tag(name = "笔记管理", description = "笔记增删改查及异步AI摘要生成接口")
 @RequiredArgsConstructor
 public class NoteController {
 
@@ -48,7 +48,7 @@ public class NoteController {
         return authentication.getName();
     }
 
-    @Operation(summary = "Sync upload note", description = "Upload note content and optional attachment, save synchronously to database")
+    @Operation(summary = "同步上传笔记", description = "上传笔记内容和可选附件，同步保存到数据库")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Note created successfully"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Creation failed")
@@ -60,6 +60,9 @@ public class NoteController {
             @Parameter(description = "Note content") @RequestParam("content") String content,
             @Parameter(description = "Tags, comma-separated") @RequestParam(value = "tags", required = false) String tags,
             @Parameter(description = "Attachment file") @RequestParam(value = "file", required = false) MultipartFile file) throws IOException {
+        if (title == null || title.isBlank()) {
+            return ResponseEntity.badRequest().body(ApiResponse.badRequest("Title is required"));
+        }
         String username = getCurrentUsername();
         Note createdNote = noteService.uploadNote(title, content, username, tags, file);
 
@@ -69,18 +72,22 @@ public class NoteController {
         return ResponseEntity.status(201).body(ApiResponse.success(201, "Note created successfully", data));
     }
 
-    @Operation(summary = "Async upload note with summary", description = "Upload note content and return immediately, AI generates summary and tags asynchronously, pushes result via WebSocket on completion")
+    @Operation(summary = "异步上传笔记并生成摘要", description = "上传笔记内容后立即返回，AI异步生成摘要和标签，完成后通过WebSocket推送结果")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Note submitted, processing asynchronously",
                     content = @Content(schema = @Schema(implementation = ApiResponse.class))),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Submission failed")
     })
+    @AuditLogAnnotation(action = "CREATE", resourceType = "NOTE")
     @PostMapping(value = "/async", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<Map<String, Object>>> createNoteAsync(
             @Parameter(description = "Note title", required = true) @RequestParam("title") String title,
             @Parameter(description = "Note content", required = true) @RequestParam("content") String content,
             @Parameter(description = "Tags, comma-separated") @RequestParam(value = "tags", required = false) String tags,
             @Parameter(description = "Attachment file") @RequestParam(value = "file", required = false) MultipartFile file) throws IOException {
+        if (title == null || title.isBlank()) {
+            return ResponseEntity.badRequest().body(ApiResponse.badRequest("Title is required"));
+        }
         String username = getCurrentUsername();
         Map<String, Object> result = noteService.createNoteAsync(title, content, username, tags, file);
 
@@ -88,7 +95,7 @@ public class NoteController {
                 ApiResponse.success(201, "Note submitted, summary processing asynchronously", result));
     }
 
-    @Operation(summary = "Get all notes", description = "Get all notes for the current user, supports keyword search")
+    @Operation(summary = "获取所有笔记", description = "获取当前用户的所有笔记，支持关键词搜索")
     @GetMapping
     public ResponseEntity<ApiResponse<List<Note>>> getAllNotes(
             @Parameter(description = "Search keyword") @RequestParam(required = false) String keyword) {
@@ -104,7 +111,7 @@ public class NoteController {
         return ResponseEntity.ok(ApiResponse.success(notes));
     }
 
-    @Operation(summary = "Get note by ID", description = "Get single note details, ownership verification required")
+    @Operation(summary = "获取笔记详情", description = "获取单个笔记详情，需要所有权验证")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<Note>> getNoteById(
             @Parameter(description = "Note ID") @PathVariable Long id) {
@@ -117,7 +124,7 @@ public class NoteController {
         return ResponseEntity.ok(ApiResponse.success(note));
     }
 
-    @Operation(summary = "Update note", description = "Update note title, content, tags, etc. Ownership verification required")
+    @Operation(summary = "更新笔记", description = "更新笔记标题、内容、标签等，需要所有权验证")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<Note>> updateNote(
             @Parameter(description = "Note ID") @PathVariable Long id,
@@ -144,7 +151,7 @@ public class NoteController {
         return ResponseEntity.ok(ApiResponse.success("Note updated successfully", updatedNote));
     }
 
-    @Operation(summary = "Delete note", description = "Delete note by ID, ownership verification required")
+    @Operation(summary = "删除笔记", description = "根据ID删除笔记，需要所有权验证")
     @AuditLogAnnotation(action = "DELETE", resourceType = "NOTE")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Map<String, Object>>> deleteNote(
@@ -161,10 +168,11 @@ public class NoteController {
         return ResponseEntity.ok(ApiResponse.success("Note deleted successfully", data));
     }
 
-    @Operation(summary = "Download note file", description = "Download the attached file of a note")
+    @Operation(summary = "下载笔记附件", description = "下载笔记的附件文件")
     @GetMapping("/{id}/file")
     public ResponseEntity<Resource> downloadFile(
-            @Parameter(description = "Note ID") @PathVariable Long id) {
+            @Parameter(description = "Note ID") @PathVariable Long id,
+            @Parameter(description = "JWT token for authentication") @RequestParam(required = false) String token) {
         String username = getCurrentUsername();
         Note note = noteService.getNoteById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Note not found with id: " + id));
@@ -181,13 +189,14 @@ public class NoteController {
         }
 
         Resource resource = new FileSystemResource(file);
+        String originalFilename = extractOriginalFilename(file.getName());
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/octet-stream"))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + file.getName() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + originalFilename + "\"")
                 .body(resource);
     }
 
-    @Operation(summary = "Preview note file inline", description = "Serve file with correct MIME type for inline preview in browser")
+    @Operation(summary = "预览笔记附件", description = "以正确的MIME类型返回文件，支持浏览器内联预览")
     @GetMapping("/{id}/preview")
     public ResponseEntity<Resource> previewFile(
             @Parameter(description = "Note ID") @PathVariable Long id,
@@ -209,11 +218,29 @@ public class NoteController {
 
         Resource resource = new FileSystemResource(file);
         String contentType = getContentType(file.getName());
+        String originalFilename = extractOriginalFilename(file.getName());
 
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(contentType))
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + file.getName() + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + originalFilename + "\"")
                 .body(resource);
+    }
+
+    /**
+     * Extract original filename from UUID-prefixed stored filename.
+     * Stored format: {uuid}_{originalName} → returns {originalName}
+     */
+    private String extractOriginalFilename(String storedName) {
+        if (storedName == null) return "download";
+        int underscoreIdx = storedName.indexOf('_');
+        if (underscoreIdx > 0 && underscoreIdx < storedName.length() - 1) {
+            // Verify the prefix looks like a UUID (contains hyphens)
+            String prefix = storedName.substring(0, underscoreIdx);
+            if (prefix.contains("-")) {
+                return storedName.substring(underscoreIdx + 1);
+            }
+        }
+        return storedName;
     }
 
     private String getContentType(String filename) {
@@ -237,7 +264,7 @@ public class NoteController {
         };
     }
 
-    @Operation(summary = "Generate summary synchronously (deprecated)", description = "This endpoint is for debugging and backward compatibility only. Use POST /api/notes/async instead.")
+    @Operation(summary = "同步生成摘要（已废弃）", description = "此接口仅用于调试和向后兼容，请使用 POST /api/notes/async 代替")
     @PostMapping("/{id}/summary")
     public ResponseEntity<ApiResponse<Map<String, Object>>> generateSummary(
             @Parameter(description = "Note ID") @PathVariable Long id) {

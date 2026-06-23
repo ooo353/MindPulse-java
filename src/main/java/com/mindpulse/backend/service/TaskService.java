@@ -219,30 +219,30 @@ public class TaskService implements ITaskService {
     @Override
     @Transactional
     public Task updateTaskStatusWithLock(Long id, String status, String username) {
-        String lockKey = "task:" + id;
-        String lockValue = distributedLock.tryLock(lockKey, 10);
-        if (lockValue == null) {
-            log.warn("Task status update lock contention failed: taskId={}, user={}", id, username);
+        Task task = taskMapper.findById(id);
+        if (task == null) {
+            log.warn("Task not found: taskId={}", id);
             return null;
         }
 
-        try {
-            Task task = taskMapper.findById(id);
-            if (task == null) {
-                throw new RuntimeException("Task not found: " + id);
-            }
-            verifyOwnership(task.getAuthor(), username, id);
-            task.setStatus(status);
-            task.setUpdatedAt(LocalDateTime.now());
-            taskMapper.updateTask(task);
-            log.info("Task status updated: taskId={}, status={}, user={}", id, status, username);
+        verifyOwnership(task.getAuthor(), username, id);
 
-            evictCache(CACHE_PREFIX + "id_" + id);
-            evictCacheByPattern(CACHE_PREFIX + "user_" + username + "*");
-            return task;
-        } finally {
-            distributedLock.unlock(lockKey, lockValue);
+        int affectedRows = taskMapper.updateStatusWithOptimisticLock(
+                id, status, task.getVersion(), username, LocalDateTime.now());
+
+        if (affectedRows == 0) {
+            log.warn("Optimistic lock conflict: taskId={}, expectedVersion={}, user={}", id, task.getVersion(), username);
+            return null;
         }
+
+        task.setStatus(status);
+        task.setVersion(task.getVersion() + 1);
+        log.info("Task status updated with optimistic lock: taskId={}, status={}, newVersion={}, user={}",
+                id, status, task.getVersion(), username);
+
+        evictCache(CACHE_PREFIX + "id_" + id);
+        evictCacheByPattern(CACHE_PREFIX + "user_" + username + "*");
+        return task;
     }
 
     @Override

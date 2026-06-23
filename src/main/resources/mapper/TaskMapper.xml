@@ -14,6 +14,7 @@
         <result property="relatedNotes" column="related_notes"/>
         <result property="createdAt" column="created_at"/>
         <result property="updatedAt" column="updated_at"/>
+        <result property="version" column="version"/>
     </resultMap>
 
     <select id="findById" resultMap="TaskResultMap">
@@ -35,8 +36,8 @@
     </select>
 
     <insert id="insertTask" useGeneratedKeys="true" keyProperty="id">
-        INSERT INTO tasks (title, description, due_date, priority, status, category, author, related_notes, created_at, updated_at)
-        VALUES (#{title}, #{description}, #{dueDate}, #{priority}, #{status}, #{category}, #{author}, #{relatedNotes}, #{createdAt}, #{updatedAt})
+        INSERT INTO tasks (title, description, due_date, priority, status, category, author, related_notes, version, created_at, updated_at)
+        VALUES (#{title}, #{description}, #{dueDate}, #{priority}, #{status}, #{category}, #{author}, #{relatedNotes}, 0, #{createdAt}, #{updatedAt})
     </insert>
 
     <update id="updateTask">
@@ -55,5 +56,15 @@
     <delete id="deleteById">
         DELETE FROM tasks WHERE id = #{id}
     </delete>
+
+    <update id="updateStatusWithOptimisticLock">
+        UPDATE tasks
+        SET status = #{status},
+            updated_at = #{updatedAt},
+            version = version + 1
+        WHERE id = #{id}
+          AND version = #{version}
+          AND author = #{username}
+    </update>
 
 </mapper>

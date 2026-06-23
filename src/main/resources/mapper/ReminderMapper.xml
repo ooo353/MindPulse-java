@@ -54,4 +54,8 @@
         DELETE FROM reminders WHERE id = #{id}
     </delete>
 
+    <update id="disableById">
+        UPDATE reminders SET enabled = 0, updated_at = NOW() WHERE id = #{id}
+    </update>
+
 </mapper>

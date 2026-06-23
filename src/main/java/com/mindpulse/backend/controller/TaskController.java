@@ -33,7 +33,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/tasks")
-@Tag(name = "Task Management", description = "Task CRUD and AI parsing interface")
+@Tag(name = "任务管理", description = "任务增删改查及AI解析接口")
 @RequiredArgsConstructor
 public class TaskController {
 
@@ -50,7 +50,7 @@ public class TaskController {
         return authentication.getName();
     }
 
-    @Operation(summary = "Create task", description = "Manually create a task")
+    @Operation(summary = "创建任务", description = "手动创建一个新任务")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Created successfully"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Server error")
@@ -67,7 +67,7 @@ public class TaskController {
         return ResponseEntity.status(201).body(ApiResponse.success(201, "Task created successfully", createdTask));
     }
 
-    @Operation(summary = "Get all tasks", description = "Get all tasks for the current user, optionally filtered by status")
+    @Operation(summary = "获取所有任务", description = "获取当前用户的所有任务，支持按状态筛选")
     @GetMapping
     public ResponseEntity<ApiResponse<List<Task>>> getAllTasks(
             @Parameter(description = "Status filter: pending/completed/archived")
@@ -82,7 +82,7 @@ public class TaskController {
         return ResponseEntity.ok(ApiResponse.success(tasks));
     }
 
-    @Operation(summary = "Get task by ID", description = "Get task details by ID")
+    @Operation(summary = "获取任务详情", description = "根据ID获取任务详情")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<Task>> getTaskById(@PathVariable Long id) {
         Task task = taskService.getTaskById(id)
@@ -92,7 +92,7 @@ public class TaskController {
         return ResponseEntity.ok(ApiResponse.success(task));
     }
 
-    @Operation(summary = "Update task", description = "Update a task by ID")
+    @Operation(summary = "更新任务", description = "根据ID更新任务信息")
     @AuditLogAnnotation(action = "UPDATE", resourceType = "TASK")
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<Task>> updateTask(@PathVariable Long id, @Valid @RequestBody TaskDto taskDto) {
@@ -108,7 +108,7 @@ public class TaskController {
         return ResponseEntity.ok(ApiResponse.success("Task updated successfully", updatedTask));
     }
 
-    @Operation(summary = "Delete task", description = "Delete a task by ID")
+    @Operation(summary = "删除任务", description = "根据ID删除任务")
     @AuditLogAnnotation(action = "DELETE", resourceType = "TASK")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Map<String, Object>>> deleteTask(@PathVariable Long id) {
@@ -122,7 +122,7 @@ public class TaskController {
         return ResponseEntity.ok(ApiResponse.success("Task deleted successfully", data));
     }
 
-    @Operation(summary = "AI task parsing", description = "Parse natural language instruction into a structured task via AI. Semantic cache: synonymous instructions return cached results.")
+    @Operation(summary = "AI任务解析", description = "将自然语言指令解析为结构化任务，语义缓存：相似指令返回缓存结果")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Parse successful"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid parameters"),
@@ -172,14 +172,14 @@ public class TaskController {
         return ResponseEntity.ok(ApiResponse.success("Task parsed successfully", response));
     }
 
-    @Operation(summary = "Cache statistics", description = "Get AI parse semantic cache statistics including hit rate and average response time")
+    @Operation(summary = "缓存统计", description = "获取AI解析语义缓存统计信息，包括命中率和平均响应时间")
     @GetMapping("/cache-stats")
     public ResponseEntity<ApiResponse<CacheStatsResponse>> getCacheStats() {
         CacheStatsResponse stats = semanticCacheService.getCacheStats();
         return ResponseEntity.ok(ApiResponse.success(stats));
     }
 
-    @Operation(summary = "Update task status (distributed lock)", description = "Task status update with Redis distributed lock to prevent multi-device concurrent status conflicts. Returns 409 on lock contention.")
+    @Operation(summary = "更新任务状态（分布式锁）", description = "使用Redis分布式锁更新任务状态，防止多设备并发状态冲突，锁竞争时返回409")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Status updated successfully"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Access denied"),
@@ -201,10 +201,9 @@ public class TaskController {
 
         Task updated = taskService.updateTaskStatusWithLock(id, status, username);
         if (updated == null) {
-            Map<String, Object> conflictData = new HashMap<>();
-            conflictData.put("message", "Concurrency conflict: the task is being modified by another operation, please retry");
-            conflictData.put("taskId", id);
-            return ResponseEntity.status(409).body(ApiResponse.error(409, "Concurrency conflict, please retry"));
+            log.warn("Task status update conflict: taskId={}, user={}", id, username);
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(ApiResponse.error(409, "Task was modified by another request. Please refresh and try again."));
         }
 
         Map<String, Object> data = new HashMap<>();

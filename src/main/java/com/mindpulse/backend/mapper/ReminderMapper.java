@@ -20,4 +20,6 @@ public interface ReminderMapper {
     void updateReminder(Reminder reminder);
 
     void deleteById(@Param("id") Long id);
+
+    void disableById(@Param("id") Long id);
 }

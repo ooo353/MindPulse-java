@@ -9,6 +9,8 @@ import com.mindpulse.backend.entity.User;
 import com.mindpulse.backend.security.CustomUserDetails;
 import com.mindpulse.backend.security.JwtUtil;
 import com.mindpulse.backend.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,7 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/auth")
+@Tag(name = "认证管理", description = "用户注册和登录认证接口")
 @RequiredArgsConstructor
 public class AuthController {
 
@@ -32,6 +35,7 @@ public class AuthController {
     private final UserService userService;
     private final JwtUtil jwtUtil;
 
+    @Operation(summary = "用户注册")
     @AuditLogAnnotation(action = "REGISTER", resourceType = "USER")
     @RateLimit(maxRequests = 10, windowSeconds = 60)
     @PostMapping("/register")
@@ -50,6 +54,7 @@ public class AuthController {
         }
     }
 
+    @Operation(summary = "用户登录")
     @RateLimit(maxRequests = 10, windowSeconds = 60)
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<Map<String, Object>>> loginUser(@Valid @RequestBody LoginDto loginDto) {

@@ -26,6 +26,8 @@ public class Task {
 
     private LocalDateTime updatedAt;
 
+    private Integer version;
+
     public Task() {}
 
     public Task(String title, String description, String author) {
@@ -120,5 +122,13 @@ public class Task {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public Integer getVersion() {
+        return version;
+    }
+
+    public void setVersion(Integer version) {
+        this.version = version;
     }
 }

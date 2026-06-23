@@ -224,7 +224,9 @@ public class NoteService implements INoteService {
             existingNote.setTags(noteDto.tags());
             existingNote.setSummary(noteDto.summary());
             existingNote.setCategory(noteDto.category());
-            existingNote.setStatus(noteDto.status());
+            if (noteDto.status() != null) {
+                existingNote.setStatus(noteDto.status());
+            }
             existingNote.setUpdatedAt(LocalDateTime.now());
 
             noteMapper.updateNote(existingNote);
@@ -242,6 +244,16 @@ public class NoteService implements INoteService {
         noteMapper.deleteById(id);
         evictCache(CACHE_PREFIX + "id_" + id);
         evictCacheByPattern(CACHE_PREFIX + "*");
+    }
+
+    /**
+     * Evict Redis cache for a specific note and all author lists.
+     * Called by NoteSummaryConsumer after async summary update.
+     */
+    public void evictNoteCache(Long noteId) {
+        evictCache(CACHE_PREFIX + "id_" + noteId);
+        evictCacheByPattern(CACHE_PREFIX + "author_*");
+        evictCacheByPattern(CACHE_PREFIX + "search_*");
     }
 
     @Override

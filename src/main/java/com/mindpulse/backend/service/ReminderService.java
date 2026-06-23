@@ -89,4 +89,10 @@ public class ReminderService implements IReminderService {
     public List<Reminder> findAllEnabled() {
         return reminderMapper.findAllEnabled();
     }
+
+    @Override
+    @Transactional
+    public void disableReminder(Long id) {
+        reminderMapper.disableById(id);
+    }
 }

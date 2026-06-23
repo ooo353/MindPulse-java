@@ -12,4 +12,5 @@ public interface IReminderService {
     Reminder updateReminder(Long id, ReminderDto dto, String username);
     void deleteReminder(Long id, String username);
     List<Reminder> findAllEnabled();
+    void disableReminder(Long id);
 }

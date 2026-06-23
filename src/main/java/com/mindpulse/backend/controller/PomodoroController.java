@@ -25,13 +25,13 @@ import java.util.Optional;
 @Slf4j
 @RestController
 @RequestMapping("/api/pomodoro")
-@Tag(name = "Pomodoro Timer", description = "Pomodoro timer and study statistics endpoints")
+@Tag(name = "番茄钟", description = "番茄钟计时器和学习统计接口")
 @RequiredArgsConstructor
 public class PomodoroController {
 
     private final IPomodoroService pomodoroService;
 
-    @Operation(summary = "Start a pomodoro session", description = "Begin a new focus/break session")
+    @Operation(summary = "开始番茄钟", description = "开始一个新的专注/休息会话")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "201", description = "Session started"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid input"),
@@ -45,7 +45,7 @@ public class PomodoroController {
         return ResponseEntity.status(201).body(ApiResponse.success(201, "Pomodoro session started", session));
     }
 
-    @Operation(summary = "Complete a pomodoro session", description = "Mark a running session as completed")
+    @Operation(summary = "完成番茄钟", description = "将运行中的会话标记为已完成")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Session completed"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Not your session"),
@@ -59,7 +59,7 @@ public class PomodoroController {
         return ResponseEntity.ok(ApiResponse.success(200, "Pomodoro session completed", session));
     }
 
-    @Operation(summary = "Cancel a pomodoro session", description = "Cancel a running session")
+    @Operation(summary = "取消番茄钟", description = "取消一个运行中的会话")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Session cancelled"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Not your session"),
@@ -73,7 +73,7 @@ public class PomodoroController {
         return ResponseEntity.ok(ApiResponse.success(200, "Pomodoro session cancelled", session));
     }
 
-    @Operation(summary = "Get active session", description = "Retrieve the currently running pomodoro session")
+    @Operation(summary = "获取当前会话", description = "获取当前正在运行的番茄钟会话")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Active session or null")
     })
@@ -84,7 +84,7 @@ public class PomodoroController {
         return ResponseEntity.ok(ApiResponse.success(200, "Active session retrieved", session.orElse(null)));
     }
 
-    @Operation(summary = "Get study statistics", description = "Retrieve pomodoro statistics for a given period")
+    @Operation(summary = "获取学习统计", description = "获取指定时间段的番茄钟统计数据")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Statistics retrieved")
     })
@@ -97,7 +97,7 @@ public class PomodoroController {
         return ResponseEntity.ok(ApiResponse.success(200, "Statistics retrieved", stats));
     }
 
-    @Operation(summary = "Get session history", description = "Retrieve paginated pomodoro session history")
+    @Operation(summary = "获取会话历史", description = "获取分页的番茄钟会话历史记录")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "History retrieved")
     })
@@ -113,7 +113,7 @@ public class PomodoroController {
         return ResponseEntity.ok(ApiResponse.success(200, "History retrieved", history));
     }
 
-    @Operation(summary = "Delete a pomodoro session")
+    @Operation(summary = "删除番茄钟会话")
     @DeleteMapping("/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteSession(
             @Parameter(description = "Session ID") @PathVariable Long id) {
@@ -122,7 +122,7 @@ public class PomodoroController {
         return ResponseEntity.ok(ApiResponse.success(200, "Session deleted", null));
     }
 
-    @Operation(summary = "Clear all pomodoro history")
+    @Operation(summary = "清除所有番茄钟历史")
     @DeleteMapping("/history")
     public ResponseEntity<ApiResponse<Void>> clearHistory() {
         String userId = getCurrentUsername();
@@ -130,7 +130,7 @@ public class PomodoroController {
         return ResponseEntity.ok(ApiResponse.success(200, "History cleared", null));
     }
 
-    @Operation(summary = "Get daily summary for pie chart")
+    @Operation(summary = "获取每日摘要（饼图）")
     @GetMapping("/daily-summary")
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getDailySummary(
             @RequestParam(defaultValue = "") String date) {

@@ -11,6 +11,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.util.StringUtils;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -46,12 +47,17 @@ public class ScheduledTasksConfig {
         for (Reminder reminder : enabledReminders) {
             if (!shouldFire(reminder, now, today, todayDow)) continue;
 
-            String lockKey = "reminder:" + reminder.getId() + ":" + now.getHour() + ":" + now.getMinute();
-            String lockValue = distributedLock.tryLock(lockKey, 50);
+            String lockKey = "reminder:" + reminder.getId() + ":" + today + ":" + now.getHour() + ":" + now.getMinute();
+            String lockValue = distributedLock.tryLock(lockKey, 120);
             if (lockValue == null) continue;
 
             try {
                 fireReminder(reminder);
+                // Disable ONCE reminders after firing
+                if ("ONCE".equals(reminder.getRemindType())) {
+                    reminderService.disableReminder(reminder.getId());
+                    log.info("ONCE reminder disabled after firing: id={}", reminder.getId());
+                }
             } finally {
                 distributedLock.unlock(lockKey, lockValue);
             }
@@ -62,7 +68,7 @@ public class ScheduledTasksConfig {
     public void checkUpcomingTasks() {
         String windowKey = LocalTime.now().withSecond(0).withNano(0).format(TIME_FMT);
         String lockKey = "scheduler:task-reminder:" + windowKey;
-        String lockValue = distributedLock.tryLock(lockKey, 500);
+        String lockValue = distributedLock.tryLock(lockKey, 600);
         if (lockValue == null) {
             log.debug("Task due scan already executed by another instance");
             return;
@@ -92,6 +98,8 @@ public class ScheduledTasksConfig {
 
     private boolean shouldFire(Reminder r, LocalTime now, LocalDate today, DayOfWeek todayDow) {
         if (r.getRemindTime() == null) return false;
+
+        // Use range check: allow firing if current minute matches (handles scheduler jitter)
         LocalTime remindTime = r.getRemindTime().withSecond(0).withNano(0);
         if (!remindTime.equals(now)) return false;
 
@@ -100,9 +108,31 @@ public class ScheduledTasksConfig {
             case "DAILY" -> true;
             case "WEEKLY" -> r.getDayOfWeek() != null
                     && r.getDayOfWeek().equalsIgnoreCase(todayDow.name().substring(0, 3));
-            case "CUSTOM" -> true;
+            case "CUSTOM" -> evaluateCron(r.getCronExpression(), today, todayDow);
             default -> false;
         };
+    }
+
+    /**
+     * Evaluate a simple cron expression against the current date.
+     * Supports standard 5-field cron: minute hour day-of-month month day-of-week
+     */
+    private boolean evaluateCron(String cronExpression, LocalDate today, DayOfWeek todayDow) {
+        if (!StringUtils.hasText(cronExpression)) return true; // No cron = fire every day
+
+        try {
+            // Use Spring's built-in cron parser
+            org.springframework.scheduling.support.CronExpression cron =
+                    org.springframework.scheduling.support.CronExpression.parse(cronExpression);
+            // Check if the cron matches the current minute (next() returns next match time)
+            java.time.LocalDateTime now = java.time.LocalDateTime.of(today, LocalTime.now().withSecond(0).withNano(0));
+            java.time.LocalDateTime nextMatch = cron.next(now.minusMinutes(1));
+            return nextMatch != null && nextMatch.toLocalDate().equals(today)
+                    && nextMatch.getHour() == now.getHour() && nextMatch.getMinute() == now.getMinute();
+        } catch (Exception e) {
+            log.warn("Invalid cron expression '{}', treating as DAILY: {}", cronExpression, e.getMessage());
+            return true; // Fallback to daily if cron is invalid
+        }
     }
 
     private void fireReminder(Reminder reminder) {

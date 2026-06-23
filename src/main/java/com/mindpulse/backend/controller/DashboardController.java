@@ -23,7 +23,7 @@ import java.time.Year;
 @Slf4j
 @RestController
 @RequestMapping("/api/dashboard")
-@Tag(name = "Dashboard", description = "Dashboard statistics and analytics")
+@Tag(name = "仪表盘", description = "仪表盘统计与数据分析接口")
 @RequiredArgsConstructor
 public class DashboardController {
 
@@ -37,7 +37,7 @@ public class DashboardController {
         return authentication.getName();
     }
 
-    @Operation(summary = "Get dashboard summary", description = "Get total tasks, completion rate, active days, etc.")
+    @Operation(summary = "获取仪表盘摘要", description = "获取任务总数、完成率、活跃天数等统计信息")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Summary retrieved successfully"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Server error")
@@ -49,7 +49,7 @@ public class DashboardController {
         return ResponseEntity.ok(ApiResponse.success(summary));
     }
 
-    @Operation(summary = "Get productivity data", description = "Get daily completed tasks and study minutes for the specified period")
+    @Operation(summary = "获取生产力数据", description = "获取指定时间段内每日完成任务数和学习时长")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Productivity data retrieved successfully"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Server error")
@@ -63,7 +63,7 @@ public class DashboardController {
         return ResponseEntity.ok(ApiResponse.success(productivity));
     }
 
-    @Operation(summary = "Get category distribution", description = "Get task and note category distribution")
+    @Operation(summary = "获取分类分布", description = "获取任务和笔记的分类分布")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Category distribution retrieved successfully"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Server error")
@@ -75,7 +75,7 @@ public class DashboardController {
         return ResponseEntity.ok(ApiResponse.success(distribution));
     }
 
-    @Operation(summary = "Get study heatmap", description = "Get daily study minutes heatmap for the given year")
+    @Operation(summary = "获取学习热力图", description = "获取指定年份每日学习时长热力图")
     @ApiResponses({
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Heatmap retrieved successfully"),
             @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "500", description = "Server error")

@@ -20,14 +20,14 @@ import java.util.Map;
 @Slf4j
 @RestController
 @RequestMapping("/api/admin")
-@Tag(name = "Admin", description = "Admin management endpoints")
+@Tag(name = "后台管理", description = "管理员专用接口")
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
     private final IAuditLogService auditLogService;
 
-    @Operation(summary = "Get audit logs", description = "Retrieve paginated audit logs with filters")
+    @Operation(summary = "获取审计日志", description = "获取分页的审计日志，支持筛选条件")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Audit logs retrieved"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Admin role required")
@@ -44,7 +44,7 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(200, "Audit logs retrieved", result));
     }
 
-    @Operation(summary = "Get all users", description = "Retrieve list of all registered users")
+    @Operation(summary = "获取所有用户", description = "获取所有注册用户列表")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Users retrieved"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Admin role required")
@@ -55,7 +55,7 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(200, "Users retrieved", users));
     }
 
-    @Operation(summary = "Update user role", description = "Change a user's role (ADMIN/USER)")
+    @Operation(summary = "更新用户角色", description = "修改用户的角色（ADMIN/USER）")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Role updated"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Admin role required"),
@@ -73,7 +73,7 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(200, "User role updated", null));
     }
 
-    @Operation(summary = "Get admin stats", description = "Retrieve admin dashboard statistics")
+    @Operation(summary = "获取管理统计", description = "获取管理员仪表盘统计数据")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Stats retrieved"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "403", description = "Admin role required")

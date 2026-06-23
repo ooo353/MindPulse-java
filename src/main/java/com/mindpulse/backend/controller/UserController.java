@@ -24,13 +24,13 @@ import java.util.UUID;
 @Slf4j
 @RestController
 @RequestMapping("/api/users")
-@Tag(name = "User Management", description = "User profile and account management")
+@Tag(name = "用户管理", description = "用户个人资料和账户管理接口")
 @RequiredArgsConstructor
 public class UserController {
 
     private final IUserService userService;
 
-    @Operation(summary = "Get current user profile")
+    @Operation(summary = "获取当前用户资料")
     @ApiResponses({@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Profile retrieved")})
     @GetMapping("/profile")
     public ResponseEntity<ApiResponse<UserProfileDto>> getProfile() {
@@ -39,7 +39,7 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(200, "Profile retrieved", profile));
     }
 
-    @Operation(summary = "Update user profile")
+    @Operation(summary = "更新用户资料")
     @ApiResponses({@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Profile updated")})
     @PutMapping("/profile")
     public ResponseEntity<ApiResponse<Void>> updateProfile(@Valid @RequestBody UpdateProfileDto dto) {
@@ -48,7 +48,7 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(200, "Profile updated", null));
     }
 
-    @Operation(summary = "Change password")
+    @Operation(summary = "修改密码")
     @ApiResponses({
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Password changed"),
         @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "Invalid old password")
@@ -60,7 +60,7 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(200, "Password changed", null));
     }
 
-    @Operation(summary = "Upload avatar")
+    @Operation(summary = "上传头像")
     @ApiResponses({@io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "Avatar uploaded")})
     @PostMapping("/avatar")
     public ResponseEntity<ApiResponse<String>> uploadAvatar(@RequestParam("file") MultipartFile file) {
@@ -82,10 +82,24 @@ public class UserController {
         return ResponseEntity.ok(ApiResponse.success(200, "Avatar uploaded", avatarUrl));
     }
 
-    @Operation(summary = "Get avatar image")
+    @Operation(summary = "获取头像图片")
     @GetMapping(value = "/avatar/{filename}", produces = MediaType.ALL_VALUE)
     public ResponseEntity<org.springframework.core.io.Resource> getAvatar(@PathVariable String filename) {
-        File file = new File(System.getProperty("user.dir") + "/files/avatars/" + filename);
+        // Sanitize filename to prevent path traversal attacks
+        String safeName = filename.replaceAll("[^a-zA-Z0-9._-]", "");
+        if (safeName.contains("..") || safeName.isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        File avatarsDir = new File(System.getProperty("user.dir") + "/files/avatars");
+        File file = new File(avatarsDir, safeName);
+        // Verify canonical path stays within avatars directory
+        try {
+            if (!file.getCanonicalPath().startsWith(avatarsDir.getCanonicalPath())) {
+                return ResponseEntity.badRequest().build();
+            }
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().build();
+        }
         if (!file.exists()) return ResponseEntity.notFound().build();
         org.springframework.core.io.Resource resource = new org.springframework.core.io.FileSystemResource(file);
         return ResponseEntity.ok().body(resource);

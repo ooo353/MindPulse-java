@@ -23,6 +23,7 @@ public class NoteSummaryConsumer {
 
     private final AiAgentClient aiAgentClient;
     private final NoteMapper noteMapper;
+    private final NoteService noteService;
     private final SimpMessagingTemplate messagingTemplate;
 
     @RabbitListener(queues = RabbitMQConfig.NOTE_SUMMARY_QUEUE)
@@ -50,6 +51,7 @@ public class NoteSummaryConsumer {
                     ? aiTitle : message.getTitle();
 
             noteMapper.updateSummaryAndTags(message.getNoteId(), finalTitle, summary, tags, category, "completed");
+            noteService.evictNoteCache(message.getNoteId());
             log.info("Note summary saved to database: noteId={}, category={}", message.getNoteId(), category);
 
             long elapsed = System.currentTimeMillis() - startTime;
@@ -65,6 +67,7 @@ public class NoteSummaryConsumer {
 
             noteMapper.updateSummaryAndTags(message.getNoteId(), message.getTitle(),
                     null, null, null, "failed");
+            noteService.evictNoteCache(message.getNoteId());
 
             long elapsed = System.currentTimeMillis() - startTime;
             NoteSummaryResult result = new NoteSummaryResult(
